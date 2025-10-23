@@ -1,16 +1,15 @@
 ---
+meta:
+  version: 20
+
 build:
-  distFolder: public
   installCmd: npm ci
-  buildCmd: npm run build
-  artifacts:
-    - node_modules
-    - public
+  skip: false
 
 run:
-  CMD: node server.js
-  workDir: /home/app
-  port: 3000
+  CMD: npm run start
+  scriptName: server.js
+  containerPort: 3000
 
 env:
   - NODE_ENV=production
