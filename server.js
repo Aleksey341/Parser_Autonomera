@@ -548,6 +548,9 @@ app.get('/session/:id', async (req, res) => {
   }
 });
 
+// Убрать шум по favicon
+app.get('/favicon.ico', (req, res) => res.sendStatus(204));
+
 // Обработчик 404
 app.use((req, res) => {
     res.status(404).json({
