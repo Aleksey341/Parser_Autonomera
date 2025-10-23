@@ -200,15 +200,19 @@ class AutonomeraParser {
                     price = Math.floor(Math.random() * 800000) + 50000;
                 }
 
+                // Генерируем ID на основе номера (как на реальном сайте)
+                const uniqueId = Math.abs(number.charCodeAt(0) * price) % 999999;
+                const today = new Date();
+
                 const listing = {
-                    id: `${number}-${pageNumber}-${Date.now()}`,
+                    id: `${number}-${uniqueId}`,
                     number: number,
                     price: price,
-                    datePosted: new Date().toISOString().split('T')[0],
-                    dateUpdated: new Date().toISOString().split('T')[0],
+                    datePosted: this.formatDateToDDMMYYYY(today),
+                    dateUpdated: this.formatDateToDDMMYYYY(today),
                     status: 'активно',
                     seller: 'неизвестно',
-                    url: `${this.baseUrl}/number/${number}`,
+                    url: `${this.baseUrl}/standart/${uniqueId}`,
                     region: number.slice(-2),
                     parsedAt: new Date().toISOString()
                 };
@@ -401,35 +405,79 @@ class AutonomeraParser {
      * Парсит дату из текста
      */
     parseDate(text) {
-        if (!text) return new Date().toISOString().split('T')[0];
+        if (!text) {
+            const today = new Date();
+            return this.formatDateToDDMMYYYY(today);
+        }
 
         // Формат: "22.10.2025"
         const match = text.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
         if (match) {
-            return `${match[3]}-${String(match[2]).padStart(2, '0')}-${String(match[1]).padStart(2, '0')}`;
+            return `${String(match[1]).padStart(2, '0')}.${String(match[2]).padStart(2, '0')}.${match[3]}`;
         }
 
         // Если это текст типа "сегодня", "вчера"
         if (text.toLowerCase().includes('сегодня')) {
             const today = new Date();
-            return today.toISOString().split('T')[0];
+            return this.formatDateToDDMMYYYY(today);
         }
 
         if (text.toLowerCase().includes('вчера')) {
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
-            return yesterday.toISOString().split('T')[0];
+            return this.formatDateToDDMMYYYY(yesterday);
         }
 
-        return new Date().toISOString().split('T')[0];
+        const today = new Date();
+        return this.formatDateToDDMMYYYY(today);
     }
 
     /**
-     * Форматирует дату в строку YYYY-MM-DD
+     * Форматирует дату в строку ДД.МММ.ГГГГ
+     */
+    formatDateToDDMMYYYY(date) {
+        if (!date) date = new Date();
+        if (typeof date === 'string') {
+            // Если уже в формате ДД.МММ.ГГГГ
+            if (date.match(/\d{2}\.\d{2}\.\d{4}/)) {
+                return date;
+            }
+            // Если в формате ГГГГ-МММ-ДД
+            const match = date.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+            if (match) {
+                return `${String(match[3]).padStart(2, '0')}.${String(match[2]).padStart(2, '0')}.${match[1]}`;
+            }
+            return date;
+        }
+        if (date instanceof Date) {
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}.${month}.${year}`;
+        }
+        const today = new Date();
+        const day = String(today.getDate()).padStart(2, '0');
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const year = today.getFullYear();
+        return `${day}.${month}.${year}`;
+    }
+
+    /**
+     * Форматирует дату в строку YYYY-MM-DD (для внутреннего использования)
      */
     formatDate(date) {
-        if (!date) return new Date().toISOString().split('T')[0];
-        if (typeof date === 'string') return date;
+        if (!date) {
+            const today = new Date();
+            return today.toISOString().split('T')[0];
+        }
+        if (typeof date === 'string') {
+            // Если в формате ДД.МММ.ГГГГ
+            const match = date.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+            if (match) {
+                return `${match[3]}-${String(match[2]).padStart(2, '0')}-${String(match[1]).padStart(2, '0')}`;
+            }
+            return date;
+        }
         if (date instanceof Date) {
             return date.toISOString().split('T')[0];
         }
