@@ -426,50 +426,7 @@ app.post('/api/sessions/:id/continue', async (req, res) => {
 // GET / — главная страница с простой инструкцией
 // GET / — главная страница
 app.get('/', (req, res) => {
-  res.type('html').send(`
-<!doctype html>
-<html lang="ru">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Парсер АВТОНОМЕРА777</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px 20px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
-  h1 { color: #333; margin: 0 0 10px; }
-  .status { background: #e8f5e9; color: #2e7d32; padding: 15px; border-radius: 4px; margin: 20px 0; font-weight: bold; }
-  .section { margin: 30px 0; }
-  .section h2 { color: #1976d2; font-size: 18px; margin: 20px 0 10px; }
-  a { color: #1976d2; text-decoration: none; display: inline-block; margin: 5px 0; padding: 8px 12px; background: #e3f2fd; border-radius: 4px; }
-  a:hover { background: #bbdefb; }
-  code { background: #f5f5f5; padding: 2px 8px; border-radius: 3px; font-family: monospace; }
-</style>
-<h1>🚗 Парсер АВТОНОМЕРА777</h1>
-<div class="status">✅ Сервис работает и готов к использованию</div>
-
-<div class="section">
-  <h2>📚 API Endpoints</h2>
-  <p><code>GET /api/health</code> — проверка статуса</p>
-  <p><code>POST /api/parse</code> — начать парсинг</p>
-</div>
-
-<div class="section">
-  <h2>🚀 Быстрый старт</h2>
-  <p>Нажмите на ссылку или откройте в браузере:</p>
-  <a href="/run">▶️ Запустить парсер (все номера)</a>
-  <a href="/run?priceMin=0&priceMax=1000000&region=77">🏙️ Москва (до 1млн)</a>
-  <a href="/run?priceMin=0&priceMax=500000&region=78">🏛️ СПб (до 500к)</a>
-</div>
-
-<div class="section">
-  <h2>📖 Параметры</h2>
-  <code>priceMin</code> — минимальная цена (0) <br>
-  <code>priceMax</code> — максимальная цена (10000000) <br>
-  <code>region</code> — код региона (опционально)
-</div>
-
-<div class="section">
-  <p style="color: #666; font-size: 14px;">Версия: 2.0.1 | Статус: ✅ Готов</p>
-</div>
-  `);
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // GET /run — запускает парсер и редиректит на статус
