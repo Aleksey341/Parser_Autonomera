@@ -3,7 +3,8 @@ meta:
   version: 20
 
 build:
-  installCmd: apt-get update && apt-get install -y chromium-browser && npm ci
+  installCmd: npm ci
+  buildCmd: apt-get update && apt-get install -y --no-install-recommends chromium-browser
   skip: false
 
 run:
