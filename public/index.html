@@ -487,25 +487,15 @@
                 </div>
             </div>
 
-            <div class="control-group">
-                <div class="control-item">
-                    <label for="maxPages">Максимум страниц</label>
-                    <input type="number" id="maxPages" placeholder="50" value="50" min="1">
-                </div>
-                <div class="control-item">
-                    <label for="delayMs">Задержка между запросами (мс)</label>
-                    <input type="number" id="delayMs" placeholder="1000" value="1000" min="100">
-                </div>
-                <div class="control-item">
-                    <label for="serverUrl">URL сервера</label>
-                    <input type="text" id="serverUrl" placeholder="http://localhost:3000" value="http://localhost:3000">
-                </div>
-            </div>
 
             <div class="button-group">
                 <button class="btn-primary" id="startBtn" onclick="startParsing()">
                     <span class="spinner" id="spinner" style="display: none; margin-right: 8px;"></span>
                     Начать парсинг
+                </button>
+                <button class="btn-primary" id="continueBtn" onclick="continueParsing()" disabled style="display: none;">
+                    <span class="spinner" id="spinnerContinue" style="display: none; margin-right: 8px;"></span>
+                    ▶️ Продолжить (батч +500)
                 </button>
                 <button class="btn-secondary" id="stopBtn" onclick="stopParsing()" disabled>
                     Остановить
@@ -629,15 +619,17 @@
         let filteredData = [];
         let currentSessionId = null;
         let statusCheckInterval = null;
-        let serverUrl = 'http://localhost:3000';
+        // Используем Railway URL в продакшене, localhost для локальной разработки
+        let serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000'
+            : 'https://parser-autonomera-production.up.railway.app';
 
         async function startParsing() {
             const minPrice = parseInt(document.getElementById('minPrice').value) || 0;
             const maxPrice = parseInt(document.getElementById('maxPrice').value) || Infinity;
             const region = document.getElementById('region').value || null;
-            const maxPages = parseInt(document.getElementById('maxPages').value) || 50;
-            const delayMs = parseInt(document.getElementById('delayMs').value) || 1000;
-            serverUrl = document.getElementById('serverUrl').value;
+            const maxPages = 50;
+            const delayMs = 1000;
 
             try {
                 const healthCheck = await fetch(`${serverUrl}/api/health`);
@@ -704,13 +696,28 @@
                         await loadResults();
                         showMessage('success', `✅ Парсинг завершен! Загруженно ${status.listingsCount} объявлений`);
                         document.getElementById('startBtn').disabled = false;
+                        document.getElementById('continueBtn').disabled = true;
+                        document.getElementById('continueBtn').style.display = 'none';
                         document.getElementById('stopBtn').disabled = true;
+                        document.getElementById('exportBtn').disabled = false;
+                        document.getElementById('spinner').style.display = 'none';
+                    } else if (status.status === 'paused') {
+                        // Парсинг приостановлен - загружаем данные и показываем кнопку продолжить
+                        clearInterval(statusCheckInterval);
+                        await loadResults();
+                        showMessage('success', `✅ Батч ${status.batch.number || 1} готов! Загруженно ${status.listingsCount} объявлений\n👉 Нажмите "Продолжить" для загрузки следующего батча (еще +500)`);
+                        document.getElementById('startBtn').disabled = true;
+                        document.getElementById('continueBtn').disabled = false;
+                        document.getElementById('continueBtn').style.display = 'inline-block';
+                        document.getElementById('stopBtn').disabled = false;
                         document.getElementById('exportBtn').disabled = false;
                         document.getElementById('spinner').style.display = 'none';
                     } else if (status.status === 'error') {
                         clearInterval(statusCheckInterval);
                         showMessage('error', `❌ Ошибка парсинга: ${status.error}`);
                         document.getElementById('startBtn').disabled = false;
+                        document.getElementById('continueBtn').disabled = true;
+                        document.getElementById('continueBtn').style.display = 'none';
                         document.getElementById('stopBtn').disabled = true;
                         document.getElementById('spinner').style.display = 'none';
                     }
@@ -752,6 +759,41 @@
             } catch (error) {
                 console.error('❌ Ошибка при загрузке результатов:', error);
                 showMessage('error', `Ошибка загрузки: ${error.message}`);
+            }
+        }
+
+        async function continueParsing() {
+            if (!currentSessionId) return;
+
+            document.getElementById('continueBtn').disabled = true;
+            document.getElementById('spinnerContinue').style.display = 'inline-block';
+
+            try {
+                const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/continue`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                console.log('Continue response:', result);
+
+                showMessage('info', `▶️ Продолжаем загрузку... Текущих объявлений: ${result.currentCount}`);
+
+                // Скрываем спиннеры и показываем загрузку
+                document.getElementById('spinnerContinue').style.display = 'none';
+                document.getElementById('spinner').style.display = 'inline-block';
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('continueBtn').style.display = 'none';
+
+                // Продолжаем мониторить статус
+                monitorParsing();
+
+            } catch (error) {
+                showMessage('error', `❌ Ошибка при продолжении: ${error.message}`);
+                document.getElementById('continueBtn').disabled = false;
+                document.getElementById('spinnerContinue').style.display = 'none';
             }
         }
 
@@ -914,15 +956,6 @@
 
         window.addEventListener('load', () => {
             console.log('🚗 Парсер АВТОНОМЕРА777 готов');
-            const savedUrl = localStorage.getItem('serverUrl');
-            if (savedUrl) {
-                document.getElementById('serverUrl').value = savedUrl;
-                serverUrl = savedUrl;
-            }
-        });
-
-        document.getElementById('serverUrl').addEventListener('change', (e) => {
-            localStorage.setItem('serverUrl', e.target.value);
         });
     </script>
 </body>

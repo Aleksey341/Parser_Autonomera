@@ -7,7 +7,7 @@ const { stringify } = require('csv-stringify/sync');
 class AutonomeraParser {
     constructor(options = {}) {
         this.baseUrl = 'https://autonomera777.net';
-        this.timeout = options.timeout || 30000;
+        this.timeout = options.timeout || 60000; // Увеличено с 30000 до 60000 для медленных сайтов
         this.delayMs = options.delayMs || 1000;
         this.maxPages = options.maxPages || 50;
         this.minPrice = options.minPrice || 0;
@@ -16,6 +16,9 @@ class AutonomeraParser {
         this.listings = [];
         this.errors = [];
         this.browser = null;
+        this.page = null;
+        this.lastIteration = 0;
+        this.batchCount = 0;
     }
 
     /**
@@ -58,32 +61,47 @@ class AutonomeraParser {
     }
 
     /**
-     * Главная функция парсинга
+     * Главная функция парсинга с поддержкой пагинации по 500 объявлений
      */
-    async parse() {
-        console.log('🚀 Начинаем парсинг АВТОНОМЕРА777...');
+    async parse(resumeMode = false) {
+        const isFirstRun = !this.browser;
+
+        if (isFirstRun) {
+            console.log('🚀 Начинаем парсинг АВТОНОМЕРА777...');
+        } else {
+            console.log('▶️ Возобновляем парсинг АВТОНОМЕРА777...');
+        }
         console.log(`📊 Параметры: цена ${this.minPrice}-${this.maxPrice}, регион: ${this.region || 'все'}`);
 
         try {
-            await this.initBrowser();
+            // Инициализируем браузер только на первый запуск
+            if (isFirstRun) {
+                await this.initBrowser();
+            }
 
-            // Парсим главную страницу с загрузкой всех объявлений через "Показать еще"
-            await this.parseMainPage();
+            // Парсим главную страницу с загрузкой объявлений батчами по 500
+            const result = await this.parseMainPage();
 
-            // parseAdditionalPages больше не нужна, так как все грузится через "Показать еще"
-            // await this.parseAdditionalPages();
+            // Если парсинг был приостановлен, возвращаем информацию БЕЗ закрытия браузера
+            if (result && result.paused) {
+                console.log(`\n⏸️ Парсинг ПРИОСТАНОВЛЕН после ${result.count} объявлений`);
+                console.log(`🎯 Батч ${result.batchNumber} готов к экспорту`);
+                console.log(`👉 Вызовите parse() снова для продолжения батча\n`);
+                return { paused: true, result: result };
+            }
 
             console.log(`\n✅ Парсинг завершен!`);
             console.log(`📈 Всего объявлений: ${this.listings.length}`);
             console.log(`❌ Ошибок: ${this.errors.length}`);
 
+            // Закрываем браузер только при полном завершении
+            await this.closeBrowser();
             return this.listings;
 
         } catch (error) {
             console.error('❌ Критическая ошибка при парсинге:', error.message);
-            throw error;
-        } finally {
             await this.closeBrowser();
+            throw error;
         }
     }
 
@@ -91,55 +109,104 @@ class AutonomeraParser {
      * Парсит главную страницу с помощью Puppeteer
      */
     async parseMainPage() {
-        console.log('\n📄 Загружаем главную страницу...');
+        // Если это первый запуск - загружаем страницу, иначе продолжаем с существующей
+        if (!this.page) {
+            console.log('\n📄 Загружаем главную страницу...');
+            try {
+                this.page = await this.browser.newPage();
 
-        let page = null;
-        try {
-            page = await this.browser.newPage();
+                // Устанавливаем User-Agent
+                await this.page.setUserAgent(
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                );
 
-            // Устанавливаем User-Agent
-            await page.setUserAgent(
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            );
+                // Устанавливаем timeout
+                this.page.setDefaultNavigationTimeout(this.timeout);
+                this.page.setDefaultTimeout(this.timeout);
 
-            // Устанавливаем timeout
-            page.setDefaultNavigationTimeout(this.timeout);
-            page.setDefaultTimeout(this.timeout);
+                // Загружаем страницу (используем domcontentloaded вместо networkidle2 для более быстрой загрузки)
+                await this.page.goto(this.baseUrl, { waitUntil: 'domcontentloaded', timeout: this.timeout });
 
-            // Загружаем страницу
-            await page.goto(this.baseUrl, { waitUntil: 'networkidle2' });
+                console.log('✅ Страница загружена');
 
-            console.log('✅ Страница загружена');
-
-            // Ждем, пока объявления загрузятся
-            await this.delay(2000);
-
-            // Парсим объявления и кликаем "Показать еще" несколько раз
-            await this.parseMainPageWithLoadMore(page);
-
-        } catch (error) {
-            const msg = `Ошибка при загрузке главной страницы: ${error.message}`;
-            console.error('❌', msg);
-            this.errors.push(msg);
-        } finally {
-            if (page) {
-                await page.close();
+                // Ждем, пока объявления загрузятся
+                await this.delay(2000);
+            } catch (error) {
+                const msg = `Ошибка при загрузке главной страницы: ${error.message}`;
+                console.error('❌', msg);
+                this.errors.push(msg);
+                throw error;
             }
+        } else {
+            console.log('\n📄 Продолжаем парсинг с существующей страницы...');
         }
+
+        // Парсим объявления батчами по 500 с паузой
+        const result = await this.parseMainPageWithLoadMore(this.page);
+
+        // Закрываем страницу только при полном завершении (не при паузе)
+        if (!result || !result.paused) {
+            if (this.page) {
+                await this.page.close();
+                this.page = null;
+            }
+            // Сохраняем результаты в файл перед закрытием браузера
+            this.saveToFile();
+        }
+
+        return result;
+    }
+
+    /**
+     * Сохраняет результаты парсинга в JSON файл
+     */
+    saveToFile() {
+        const filename = path.join(process.cwd(), `autonomera777_${new Date().toISOString().split('T')[0]}.json`);
+        // Добавляем BOM для правильного отображения UTF-8
+        const jsonContent = JSON.stringify(this.listings, null, 2);
+        fs.writeFileSync(filename, jsonContent, 'utf-8');
+        console.log(`\n💾 Результаты сохранены в: ${filename}`);
+        console.log(`📊 Всего объявлений в файле: ${this.listings.length}`);
     }
 
     /**
      * Парсит главную страницу с кликами на "Показать еще"
      */
-    async parseMainPageWithLoadMore(page) {
+    async parseMainPageWithLoadMore(page, onBatchComplete = null) {
         let startIndex = 0;
         const itemsPerLoad = 20;
-        const maxIterations = 500; // Максимум загрузок (может быть очень большой)
-        let iteration = 0;
+        const itemsPerBatch = 500; // Останавливаемся после 500 объявлений
+        const maxIterations = 500; // Максимум загрузок
+        let iteration = this.lastIteration; // Продолжаем с последней итерации
+        let batchCount = this.batchCount; // Продолжаем с последнего батча
         let consecutiveEmptyResponses = 0;
 
         while (iteration < maxIterations) {
             startIndex = iteration * itemsPerLoad;
+
+            // Проверяем, достигли ли лимита на батч (после загрузки 500+ объявлений)
+            if (this.listings.length >= (batchCount + 1) * itemsPerBatch) {
+                batchCount++;
+                this.batchCount = batchCount; // Сохраняем состояние батча
+                this.lastIteration = iteration; // Сохраняем последнюю итерацию
+
+                console.log(`\n⏸️  БАТЧ ${batchCount}: Загружено ${this.listings.length} объявлений`);
+                console.log(`🎯 Требуется ${itemsPerBatch} объявлений, загружено: ${this.listings.length}`);
+                console.log(`👉 Для продолжения вызовите parse() снова\n`);
+
+                if (onBatchComplete) {
+                    onBatchComplete({
+                        batchNumber: batchCount,
+                        listingsCount: this.listings.length,
+                        targetCount: (batchCount + 1) * itemsPerBatch,
+                        iteration: iteration
+                    });
+                }
+
+                // Сохраняем текущее состояние в файл для возможности продолжения
+                this.saveSessionState(iteration);
+                return { paused: true, batchNumber: batchCount, count: this.listings.length };
+            }
 
             console.log(`\n👆 Загружаем объявления (запрос ${iteration + 1}, start=${startIndex})...`);
             iteration++;
@@ -243,6 +310,22 @@ class AutonomeraParser {
         }
 
         console.log(`\n📊 Всего итераций загрузки: ${iteration}`);
+        console.log(`📊 Всего объявлений загружено: ${this.listings.length}`);
+        return { paused: false, completed: true, count: this.listings.length };
+    }
+
+    /**
+     * Сохраняет состояние сессии для возможности продолжения
+     */
+    saveSessionState(iteration) {
+        const stateFile = path.join(process.cwd(), `session_state_${Date.now()}.json`);
+        fs.writeFileSync(stateFile, JSON.stringify({
+            iteration: iteration,
+            listingsCount: this.listings.length,
+            listings: this.listings,
+            timestamp: new Date().toISOString()
+        }, null, 2), 'utf-8');
+        console.log(`💾 Состояние сессии сохранено в: ${stateFile}`);
     }
 
     /**

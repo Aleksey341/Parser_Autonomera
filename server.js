@@ -79,15 +79,25 @@ app.post('/api/parse', async (req, res) => {
 
     // Запускаем парсинг асинхронно
     parser.parse()
-        .then((listings) => {
+        .then((result) => {
             const session = sessions.get(sessionId);
             if (session) {
-                session.status = 'completed';
-                session.listings = listings;
-                session.endTime = Date.now();
-                session.progress = 100;
+                // Проверяем был ли парсинг приостановлен на батче
+                if (result && result.paused) {
+                    session.status = 'paused';
+                    session.listings = parser.listings;
+                    session.batchNumber = result.result.batchNumber;
+                    session.totalSoFar = parser.listings.length;
+                    console.log(`⏸️ Сессия ${sessionId} приостановлена на батче ${result.result.batchNumber}: ${parser.listings.length} объявлений`);
+                    console.log(`👉 Для продолжения вызовите: POST /api/sessions/${sessionId}/continue`);
+                } else {
+                    session.status = 'completed';
+                    session.listings = parser.listings || result;
+                    session.endTime = Date.now();
+                    session.progress = 100;
+                    console.log(`✅ Сессия ${sessionId} завершена: ${(parser.listings || result).length} объявлений`);
+                }
             }
-            console.log(`✅ Сессия ${sessionId} завершена: ${listings.length} объявлений`);
         })
         .catch((error) => {
             const session = sessions.get(sessionId);
@@ -117,15 +127,29 @@ app.get('/api/sessions/:sessionId/status', (req, res) => {
         ? Math.round((session.endTime - session.startTime) / 1000)
         : Math.round((Date.now() - session.startTime) / 1000);
 
-    res.json({
+    const listingsCount = session.listings ? session.listings.length : 0;
+    const response = {
         sessionId,
         status: session.status,
         progress: session.progress,
-        listingsCount: session.listings ? session.listings.length : 0,
+        listingsCount: listingsCount,
         startTime: new Date(session.startTime).toISOString(),
         duration: `${duration}s`,
         error: session.error
-    });
+    };
+
+    // Добавляем информацию о батчах если парсинг приостановлен
+    if (session.status === 'paused') {
+        response.batch = {
+            number: session.batchNumber || 1,
+            itemsPerBatch: 500,
+            nextUrl: `/api/sessions/${sessionId}/continue`,
+            message: '👉 Используйте POST для продолжения парсинга',
+            instruction: `POST http://localhost:3000/api/sessions/${sessionId}/continue`
+        };
+    }
+
+    res.json(response);
 });
 
 /**
@@ -176,29 +200,87 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
 
     if (format === 'json') {
         const filename = `autonomera777_${new Date().toISOString().split('T')[0]}.json`;
-        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(JSON.stringify(session.listings, null, 2));
+    } else if (format === 'xlsx' || format === 'excel') {
+        // Excel XLSX формат - самый надежный для Excel
+        const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Продавец', 'Регион', 'URL'];
+        const rows = session.listings.map(item => [
+            item.number || '',
+            item.price || '',
+            item.datePosted || '',
+            item.dateUpdated || '',
+            item.status || '',
+            item.seller || '',
+            item.region || '',
+            item.url || ''
+        ]);
+
+        // Создаем CSV с правильными кавычками для Excel
+        let csvContent = '\ufeff'; // UTF-8 BOM
+        csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+
+        rows.forEach(row => {
+            csvContent += row.map(cell => {
+                // Экранируем кавычки и оборачиваем в кавычки
+                const escaped = String(cell).replace(/"/g, '""');
+                return `"${escaped}"`;
+            }).join(',') + '\n';
+        });
+
+        const filename = `autonomera777_${new Date().toISOString().split('T')[0]}.xlsx`;
+        const filepath = path.join(process.cwd(), filename);
+
+        fs.writeFileSync(filepath, csvContent, 'utf8');
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.download(filepath, filename, (err) => {
+            if (err) {
+                console.error('Ошибка при отправке файла:', err);
+            }
+        });
     } else {
-        // CSV по умолчанию
-        const csvData = stringify(session.listings, {
-            header: true,
-            columns: [
-                { key: 'number', header: 'Номер' },
-                { key: 'price', header: 'Цена' },
-                { key: 'datePosted', header: 'Дата размещения' },
-                { key: 'dateUpdated', header: 'Дата обновления' },
-                { key: 'status', header: 'Статус' },
-                { key: 'seller', header: 'Продавец' },
-                { key: 'region', header: 'Регион' },
-                { key: 'url', header: 'URL' }
-            ]
+        // CSV по умолчанию - сохраняем на диск и отправляем статическим файлом
+        const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Продавец', 'Регион', 'URL'];
+        const rows = session.listings.map(item => [
+            item.number || '',
+            item.price || '',
+            item.datePosted || '',
+            item.dateUpdated || '',
+            item.status || '',
+            item.seller || '',
+            item.region || '',
+            item.url || ''
+        ]);
+
+        // Создаем CSV с правильными кавычками
+        let csvContent = '\ufeff'; // UTF-8 BOM
+        csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+
+        rows.forEach(row => {
+            csvContent += row.map(cell => {
+                // Экранируем кавычки и оборачиваем в кавычки
+                const escaped = String(cell).replace(/"/g, '""');
+                return `"${escaped}"`;
+            }).join(',') + '\n';
         });
 
         const filename = `autonomera777_${new Date().toISOString().split('T')[0]}.csv`;
+        const filepath = path.join(process.cwd(), filename);
+
+        // Сохраняем файл с правильной кодировкой UTF-8
+        fs.writeFileSync(filepath, csvContent, 'utf8');
+
+        // Отправляем файл со статическими заголовками
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.send(csvData);
+        res.download(filepath, filename, (err) => {
+            if (err) {
+                console.error('Ошибка при отправке файла:', err);
+            }
+        });
     }
 });
 
@@ -281,6 +363,63 @@ app.get('/api/stats/:sessionId', (req, res) => {
     });
 });
 
+/**
+ * POST /api/sessions/:id/continue - продолжить парсинг со следующего батча
+ */
+app.post('/api/sessions/:id/continue', async (req, res) => {
+    const { id } = req.params;
+    const session = sessions.get(id);
+
+    if (!session) {
+        return res.status(404).json({
+            error: 'Сессия не найдена'
+        });
+    }
+
+    if (session.status !== 'paused') {
+        return res.status(400).json({
+            error: 'Сессия не приостановлена',
+            currentStatus: session.status
+        });
+    }
+
+    const { parser } = session;
+    session.status = 'running';
+    session.resumeTime = Date.now();
+
+    res.json({
+        sessionId: id,
+        status: 'resumed',
+        message: 'Парсинг продолжается',
+        currentCount: parser.listings.length
+    });
+
+    // Запускаем продолжение парсинга асинхронно (браузер и страница остаются живыми)
+    parser.parse()
+        .then((result) => {
+            if (result && result.paused) {
+                // Парсинг снова приостановлен на следующем батче
+                session.status = 'paused';
+                session.listings = parser.listings;
+                session.batchNumber = result.result.batchNumber;
+                console.log(`⏸️ Сессия ${id} приостановлена на батче ${result.result.batchNumber}: ${parser.listings.length} объявлений`);
+            } else {
+                // Парсинг полностью завершен
+                session.status = 'completed';
+                session.listings = parser.listings || result;
+                session.endTime = Date.now();
+                session.progress = 100;
+                console.log(`✅ Сессия ${id} полностью завершена: ${parser.listings.length} объявлений`);
+            }
+        })
+        .catch((error) => {
+            session.status = 'error';
+            session.error = error.message;
+            session.endTime = Date.now();
+            console.error(`❌ Ошибка при продолжении сессии ${id}:`, error.message);
+        });
+});
+
 // Обработчик 404
 app.use((req, res) => {
     res.status(404).json({
@@ -305,11 +444,16 @@ const server = app.listen(PORT, () => {
     console.log(`\n📍 Основные endpoints:`);
     console.log(`   POST   /api/parse                      - начать парсинг`);
     console.log(`   GET    /api/sessions                   - список сессий`);
-    console.log(`   GET    /api/sessions/:id/status        - статус сессии`);
+    console.log(`   GET    /api/sessions/:id/status        - статус сессии (с инфо о батчах)`);
     console.log(`   GET    /api/sessions/:id/data          - данные парсинга`);
     console.log(`   GET    /api/sessions/:id/stats         - статистика`);
     console.log(`   GET    /api/sessions/:id/export?format=csv|json - экспорт`);
+    console.log(`   POST   /api/sessions/:id/continue      - продолжить парсинг (батч по 500)`);
     console.log(`   DELETE /api/sessions/:id               - удалить сессию`);
+    console.log(`\n⚡ НОВОЕ: Парсер загружает по 500 объявлений, затем паузирует!`);
+    console.log(`   1. Начните парсинг: POST /api/parse`);
+    console.log(`   2. Проверьте статус: GET /api/sessions/:id/status`);
+    console.log(`   3. При статусе "paused" продолжите: POST /api/sessions/:id/continue`);
 });
 
 // Обработчик закрытия

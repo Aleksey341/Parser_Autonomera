@@ -1,69 +1,58 @@
 # Dependencies
 node_modules/
 npm-debug.log
-npm-debug.log.*
-yarn-debug.log
-yarn-error.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Environment variables
-.env
-.env.local
-.env.*.local
+# Parser output files
+autonomera777_*.json
+autonomera777_*.csv
+autonomera777_*.html
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+.tmp/
+temp/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*.swn
 *~
-.DS_Store
-Thumbs.db
-
-# Logs
-logs/
-*.log
-lerna-debug.log*
 
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Desktop.ini
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Cache
+.cache/
+*.cache
+
+# Test results
+coverage/
+.nyc_output/
 
 # Build
 dist/
 build/
-.next/
-out/
 
-# Temporary files
-tmp/
-temp/
-*.tmp
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-# Data files (для приватности)
-*.csv
-*.xlsx
-autonomera777_*.json
-autonomera777_*.csv
-
-# Cache
-.cache/
-.eslintcache
-.stylelintcache
-
-# Coverage
-coverage/
-.nyc_output/
-
-# Misc
-.venv
-venv/
-ENV/
-env/
-*.pem
-*.key
+# User files
+parser_test_final.log
+parser_output.log
+test_export.csv
