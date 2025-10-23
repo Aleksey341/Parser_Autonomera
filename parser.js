@@ -35,14 +35,39 @@ class AutonomeraParser {
     async initBrowser() {
         console.log('🌐 Инициализируем браузер...');
         try {
+            // Пытаемся использовать системный chromium сначала (Docker)
+            let executablePath = '/usr/bin/chromium';
+            let args = [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--single-process',
+                '--no-zygote',
+                '--disable-gpu'
+            ];
+
+            // Если системный не найден, используем sparticuz
+            try {
+                const fs = require('fs');
+                fs.accessSync(executablePath);
+            } catch (e) {
+                console.log('📍 Системный chromium не найден, используем @sparticuz/chromium...');
+                executablePath = await chromium.executablePath();
+                args = [
+                    ...chromium.args || [],
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage'
+                ];
+            }
+
+            console.log(`📍 Используем браузер: ${executablePath}`);
             const launchConfig = {
-                args: chromium.args,
-                defaultViewport: chromium.defaultViewport,
-                executablePath: await chromium.executablePath(),
-                headless: chromium.headless,
+                executablePath,
+                args,
+                headless: 'new',
             };
 
-            console.log(`📍 Используем браузер: ${launchConfig.executablePath}`);
             this.browser = await puppeteer.launch(launchConfig);
             console.log('✅ Браузер инициализирован');
         } catch (error) {
