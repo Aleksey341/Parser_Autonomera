@@ -16,4 +16,5 @@ env:
   - NODE_ENV=production
   - NODE_OPTIONS=--experimental-global-webcrypto
   - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-  - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+  - PUPPETEER_CACHE_DIR=/tmp/puppeteer
+  - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium

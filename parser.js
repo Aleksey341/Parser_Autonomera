@@ -34,7 +34,7 @@ class AutonomeraParser {
     async initBrowser() {
         console.log('🌐 Инициализируем браузер...');
         try {
-            this.browser = await puppeteer.launch({
+            const launchConfig = {
                 headless: true,
                 args: [
                     '--no-sandbox',
@@ -42,7 +42,15 @@ class AutonomeraParser {
                     '--disable-dev-shm-usage',
                     '--disable-gpu'
                 ]
-            });
+            };
+
+            // In container environments, use the executable path if specified
+            if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+                launchConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+                console.log(`📍 Используем браузер: ${launchConfig.executablePath}`);
+            }
+
+            this.browser = await puppeteer.launch(launchConfig);
             console.log('✅ Браузер инициализирован');
         } catch (error) {
             console.error('❌ Ошибка инициализации браузера:', error.message);
