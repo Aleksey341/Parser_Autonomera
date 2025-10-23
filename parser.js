@@ -30,42 +30,48 @@ class AutonomeraParser {
     }
 
     /**
-     * Инициализирует Puppeteer браузер
+     * Определяет путь к исполняемому файлу браузера
      */
+    async getExecutablePath() {
+        // 1. Сначала — то, что пришло из окружения (Docker/Amvera)
+        if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+            console.log(`📍 Используем PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+            return process.env.PUPPETEER_EXECUTABLE_PATH;
+        }
+
+        // 2. Если переменной нет — пробуем путь, который даёт sparticuz
+        try {
+            const p = await chromium.executablePath();
+            if (p) {
+                console.log(`📍 Используем @sparticuz/chromium: ${p}`);
+                return p;
+            }
+        } catch (e) {
+            console.log(`⚠️  @sparticuz/chromium недоступен: ${e.message}`);
+        }
+
+        // 3. Фоллбек — системный Chromium в контейнере
+        console.log('📍 Используем системный браузер: /usr/bin/chromium');
+        return '/usr/bin/chromium';
+    }
+
     async initBrowser() {
         console.log('🌐 Инициализируем браузер...');
         try {
-            // Пытаемся использовать системный chromium сначала (Docker)
-            let executablePath = '/usr/bin/chromium';
-            let args = [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--single-process',
-                '--no-zygote',
-                '--disable-gpu'
-            ];
+            const executablePath = await this.getExecutablePath();
 
-            // Если системный не найден, используем sparticuz
-            try {
-                const fs = require('fs');
-                fs.accessSync(executablePath);
-            } catch (e) {
-                console.log('📍 Системный chromium не найден, используем @sparticuz/chromium...');
-                executablePath = await chromium.executablePath();
-                args = [
-                    ...chromium.args || [],
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage'
-                ];
-            }
-
-            console.log(`📍 Используем браузер: ${executablePath}`);
             const launchConfig = {
                 executablePath,
-                args,
                 headless: 'new',
+                args: [
+                    ...(chromium.args || []),
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--single-process',
+                    '--no-zygote',
+                    '--disable-gpu'
+                ]
             };
 
             this.browser = await puppeteer.launch(launchConfig);
