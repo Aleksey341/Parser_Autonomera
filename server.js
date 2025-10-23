@@ -552,9 +552,9 @@ app.use((err, req, res, next) => {
     });
 });
 
-const server = app.listen(PORT, () => {
-    console.log(`\n🚀 API сервер запущен на http://localhost:${PORT}`);
-    console.log(`📚 API документация доступна на http://localhost:${PORT}/api/health`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🚀 API сервер запущен на http://0.0.0.0:${PORT}`);
+    console.log(`📚 API документация доступна на http://0.0.0.0:${PORT}/api/health`);
     console.log(`\n📍 Основные endpoints:`);
     console.log(`   GET    /                               - главная страница`);
     console.log(`   GET    /run                            - запуск парсера с редиректом на статус`);
