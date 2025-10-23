@@ -114,14 +114,8 @@ class AutonomeraParser {
             // Ждем, пока объявления загрузятся
             await this.delay(2000);
 
-            // Получаем HTML после загрузки JavaScript
-            const html = await page.content();
-
-            // Парсим HTML с Cheerio
-            const $ = cheerio.load(html);
-
-            // Парсим объявления
-            await this.parseListingsFromPage($, 1);
+            // Парсим объявления и кликаем "Показать еще" несколько раз
+            await this.parseMainPageWithLoadMore(page);
 
         } catch (error) {
             const msg = `Ошибка при загрузке главной страницы: ${error.message}`;
@@ -135,6 +129,186 @@ class AutonomeraParser {
     }
 
     /**
+     * Парсит главную страницу с кликами на "Показать еще"
+     */
+    async parseMainPageWithLoadMore(page) {
+        let startIndex = 0;
+        const itemsPerLoad = 20;
+        const maxIterations = 50; // Максимум загрузок
+        let iteration = 0;
+
+        while (iteration < maxIterations) {
+            // Получаем текущий HTML
+            const html = await page.content();
+            const $ = cheerio.load(html);
+
+            // Парсим объявления с этой страницы
+            const initialCount = this.listings.length;
+            await this.parseListingsFromPage($, 1);
+
+            // Если не добавились новые объявления, конец
+            if (this.listings.length === initialCount && iteration > 0) {
+                console.log('✅ Новых объявлений не найдено - все загружены');
+                break;
+            }
+
+            // Проверяем наличие кнопки "Показать еще"
+            const buttonExists = await page.$('#loadScrollContentButton');
+            if (!buttonExists) {
+                console.log('✅ Кнопка "Показать еще" не найдена - все объявления загружены');
+                break;
+            }
+
+            startIndex += itemsPerLoad;
+            iteration++;
+
+            console.log(`\n👆 Загружаем еще объявления (запрос ${iteration}, start=${startIndex})...`);
+
+            try {
+                // Используем скрипт на странице для загрузки через jQuery
+                const newHtml = await page.evaluate(async (start) => {
+                    return new Promise((resolve) => {
+                        const params = {
+                            number: JSON.stringify({
+                                word1: '',
+                                word2: '',
+                                word3: '',
+                                number1: '',
+                                number2: '',
+                                number3: '',
+                                number4: '',
+                                code: '',
+                                city: '',
+                                catid: 'undefined',
+                                type: 'standart'
+                            }),
+                            catid: 'undefined',
+                            type: 'standart',
+                            city: '',
+                            code: '',
+                            photo: '',
+                            sletters: '',
+                            snumbers: '',
+                            firstten: '',
+                            ehundred: '',
+                            numeqreg: '',
+                            mirrored: '',
+                            pricefr: '',
+                            priceto: '',
+                            regcode: 'undefined',
+                            blog: 'numbers',
+                            userid: '',
+                            order: 'a.`created`',
+                            dir: 'DESC',
+                            start: start,
+                            sort: '',
+                            item_id: 101
+                        };
+
+                        if (typeof jQuery !== 'undefined') {
+                            jQuery.ajax({
+                                type: 'GET',
+                                url: '/ajax/get_numbers.php',
+                                data: params,
+                                dataType: 'html',
+                                success: function(response) {
+                                    if (response && response.trim()) {
+                                        // Добавляем новые объявления в DOM
+                                        jQuery('#adverts-list-area').append(response);
+                                        resolve(response);
+                                    } else {
+                                        resolve('');
+                                    }
+                                },
+                                error: function() {
+                                    resolve('');
+                                }
+                            });
+                        } else {
+                            resolve('');
+                        }
+                    });
+                }, startIndex);
+
+                // Если получили новый HTML, парсим его
+                if (newHtml && newHtml.trim()) {
+                    const $ = cheerio.load(newHtml);
+                    const existingNumbers = new Set(this.listings.map(l => l.number));
+                    const newCount = this.parseListingsFromAPIResponse($, existingNumbers);
+
+                    if (newCount === 0) {
+                        console.log('✅ Новых объявлений не найдено - все загружены');
+                        break;
+                    }
+                } else {
+                    console.log('✅ Новых объявлений нет в ответе - все загружены');
+                    break;
+                }
+
+                // Ждем загрузки новых данных
+                await this.delay(1000);
+
+            } catch (error) {
+                console.log(`⚠️ Ошибка при загрузке данных: ${error.message}`);
+                break;
+            }
+        }
+
+        console.log(`\n📊 Всего итераций загрузки: ${iteration}`);
+    }
+
+    /**
+     * Строит URL для API загрузки еще объявлений
+     */
+    buildLoadMoreUrl(start = 20) {
+        const params = {
+            number: JSON.stringify({
+                word1: '',
+                word2: '',
+                word3: '',
+                number1: '',
+                number2: '',
+                number3: '',
+                number4: '',
+                code: '',
+                city: '',
+                catid: 'undefined',
+                type: 'standart'
+            }),
+            catid: 'undefined',
+            type: 'standart',
+            city: '',
+            code: '',
+            photo: '',
+            sletters: '',
+            snumbers: '',
+            firstten: '',
+            ehundred: '',
+            numeqreg: '',
+            mirrored: '',
+            pricefr: '',
+            priceto: '',
+            regcode: 'undefined',
+            blog: 'numbers',
+            userid: '',
+            order: 'a.`created`',
+            dir: 'DESC',
+            start: start,
+            sort: '',
+            item_id: 101
+        };
+
+        const queryString = Object.entries(params)
+            .map(([key, value]) => {
+                const encodedValue = typeof value === 'string' ? encodeURIComponent(value) : encodeURIComponent(JSON.stringify(value));
+                return `${key}=${encodedValue}`;
+            })
+            .join('&');
+
+        return `${this.baseUrl}/ajax/get_numbers.php?${queryString}`;
+    }
+
+    /**
      * Парсит объявления из загруженной страницы
      */
     async parseListingsFromPage($, pageNumber) {
@@ -143,6 +317,13 @@ class AutonomeraParser {
         const foundNumbers = new Set();
 
         console.log('🔍 Ищем все номера автомобилей на странице...');
+
+        // Проверяем формат - это может быть API ответ или обычная страница
+        const apiRows = $('.table__tr.table__tr--td[class*="advert-id"]');
+        if (apiRows.length > 0) {
+            // Это API ответ, парсим его по-другому
+            return this.parseListingsFromAPIResponse($, existingNumbers);
+        }
 
         // Получаем весь текст страницы
         const pageText = $('body').text();
@@ -233,6 +414,105 @@ class AutonomeraParser {
         } else {
             console.log(`✅ Страница ${pageNumber}: найдено ${count} объявлений`);
         }
+    }
+
+    /**
+     * Парсит объявления из API ответа (формат таблицы)
+     */
+    parseListingsFromAPIResponse($, existingNumbers) {
+        let count = 0;
+
+        console.log('🔍 Парсим API ответ (формат таблицы)...');
+
+        // Ищем строки таблицы объявлений - это обычно <a> элементы с классом
+        const rows = $('a[class*="table__tr"][class*="advert-id"]');
+        console.log(`📌 Найдено ${rows.length} строк в API ответе`);
+
+        // Отслеживаем найденные ID в этом ответе
+        const foundAdvertIds = new Set();
+        const foundNumbers = new Set();
+
+        rows.each((i, element) => {
+            const $row = $(element);
+
+            // Извлекаем ID из класса (advert-id-XXXXX)
+            const classMatch = $row.attr('class').match(/advert-id-(\d+)/);
+            if (!classMatch) return;
+
+            const advertId = classMatch[1];
+
+            // Ищем номер из title атрибута
+            let number = $row.attr('title');
+
+            // Если нет в title, ищем в тексте
+            if (!number || !number.match(/[А-Я]\d{3}[А-Я]{2}\d{2,3}/)) {
+                const match = $row.text().match(/[А-Я]\d{3}[А-Я]{2}\d{2,3}/);
+                if (match) {
+                    number = match[0];
+                } else {
+                    return;
+                }
+            }
+
+            // Проверяем, уже ли мы видели это объявление
+            if (foundAdvertIds.has(advertId) || foundNumbers.has(number)) {
+                return; // Уже видели в этом ответе
+            }
+
+            foundAdvertIds.add(advertId);
+            foundNumbers.add(number);
+
+            // Проверяем, есть ли уже в списке
+            if (existingNumbers.has(number) || this.listings.some(l => l.number === number)) {
+                return; // Уже есть в списке
+            }
+
+            // Ищем цену - может быть в разных форматах
+            const priceText = $row.text();
+            const priceMatch = priceText.match(/(\d{1,3}(?:\s\d{3})*)\s*[₽р]/);
+            const price = priceMatch ? parseInt((priceMatch[1] || '0').replace(/\s/g, '')) : 0;
+
+            // Ищем дату
+            const dateMatch = $row.text().match(/(\d{2})\.(\d{2})\.(\d{4})/);
+            let datePosted = this.formatDateToDDMMYYYY(new Date());
+            if (dateMatch) {
+                datePosted = `${dateMatch[1]}.${dateMatch[2]}.${dateMatch[3]}`;
+            }
+
+            // URL из href
+            let url = `${this.baseUrl}/standart/${advertId}`;
+            const href = $row.attr('href');
+            if (href && href.startsWith('/standart/')) {
+                url = `${this.baseUrl}${href}`;
+            }
+
+            const listing = {
+                id: `${number}-${advertId}`,
+                number: number,
+                price: price,
+                datePosted: datePosted,
+                dateUpdated: datePosted,
+                status: 'активно',
+                seller: 'неизвестно',
+                url: url,
+                region: number.slice(-2),
+                parsedAt: new Date().toISOString()
+            };
+
+            if (this.meetsFilters(listing)) {
+                this.listings.push(listing);
+                existingNumbers.add(number);
+                count++;
+            }
+        });
+
+        if (count === 0) {
+            console.log('⚠️ Новых объявлений не найдено в API ответе');
+        } else {
+            console.log(`✅ API ответ: найдено ${count} новых объявлений`);
+        }
+
+        return count;
     }
 
     /**
