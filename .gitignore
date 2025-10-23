@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+npm-debug.log
+npm-debug.log.*
+yarn-debug.log
+yarn-error.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+lerna-debug.log*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Data files (для приватности)
+*.csv
+*.xlsx
+autonomera777_*.json
+autonomera777_*.csv
+
+# Cache
+.cache/
+.eslintcache
+.stylelintcache
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Misc
+.venv
+venv/
+ENV/
+env/
+*.pem
+*.key
