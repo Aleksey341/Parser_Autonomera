@@ -619,10 +619,17 @@
         let filteredData = [];
         let currentSessionId = null;
         let statusCheckInterval = null;
-        // Используем Railway URL в продакшене, localhost для локальной разработки
-        let serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:3000'
-            : 'https://parser-autonomera-production.up.railway.app';
+        // Автоматически определяем URL сервера
+        let serverUrl;
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            serverUrl = 'http://localhost:3000'; // Локальная разработка
+        } else if (window.location.hostname.includes('amvera')) {
+            // Amvera Cloud - используем текущий хост
+            serverUrl = window.location.protocol + '//' + window.location.host;
+        } else {
+            // Railway или другие хосты
+            serverUrl = 'https://parser-autonomera-production.up.railway.app';
+        }
 
         async function startParsing() {
             const minPrice = parseInt(document.getElementById('minPrice').value) || 0;
