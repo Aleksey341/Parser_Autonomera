@@ -1,4 +1,5 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
@@ -35,21 +36,13 @@ class AutonomeraParser {
         console.log('🌐 Инициализируем браузер...');
         try {
             const launchConfig = {
-                headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-gpu'
-                ]
+                args: chromium.args,
+                defaultViewport: chromium.defaultViewport,
+                executablePath: await chromium.executablePath(),
+                headless: chromium.headless,
             };
 
-            // In container environments, use the executable path if specified
-            if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-                launchConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-                console.log(`📍 Используем браузер: ${launchConfig.executablePath}`);
-            }
-
+            console.log(`📍 Используем браузер: ${launchConfig.executablePath}`);
             this.browser = await puppeteer.launch(launchConfig);
             console.log('✅ Браузер инициализирован');
         } catch (error) {

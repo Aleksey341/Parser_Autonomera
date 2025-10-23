@@ -4,7 +4,6 @@ meta:
 
 build:
   installCmd: npm ci
-  buildCmd: apt-get update && apt-get install -y --no-install-recommends chromium-browser
   skip: false
 
 run:
@@ -16,6 +15,3 @@ run:
 env:
   - NODE_ENV=production
   - NODE_OPTIONS=--experimental-global-webcrypto
-  - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-  - PUPPETEER_CACHE_DIR=/tmp/puppeteer
-  - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
