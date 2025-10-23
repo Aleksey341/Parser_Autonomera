@@ -458,7 +458,33 @@ class AutonomeraParser {
             // Ищем цену - может быть в разных форматах
             const priceText = $row.text();
             const priceMatch = priceText.match(/(\d{1,3}(?:\s\d{3})*)\s*[₽р]/);
-            const price = priceMatch ? parseInt((priceMatch[1] || '0').replace(/\s/g, '')) : 0;
+            let price = priceMatch ? parseInt((priceMatch[1] || '0').replace(/\s/g, '')) : 0;
+
+            // Если цена не найдена - пробуем альтернативные паттерны
+            if (price === 0) {
+                // Попробуем найти просто большое число с рублями
+                const altMatch = priceText.match(/[\s](\d{4,})[\s₽р]/);
+                if (altMatch) {
+                    price = parseInt(altMatch[1]);
+                }
+                // Если еще не найдена, пробуем найти любое число ≥ 5000 (минимальная цена номера)
+                if (price === 0) {
+                    const numbers = priceText.match(/\d+/g);
+                    if (numbers) {
+                        for (const num of numbers) {
+                            const n = parseInt(num);
+                            if (n >= 5000 && n <= 9999999) { // Логичный диапазон цен
+                                price = n;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (price === 0 && i < 3) {
+                console.log(`⚠️ Объявление ${i + 1} (${number}): не найдена цена в тексте: "${priceText.substring(0, 200)}"...`);
+            }
 
             // Ищем дату
             const dateMatch = $row.text().match(/(\d{2})\.(\d{2})\.(\d{4})/);
@@ -491,14 +517,19 @@ class AutonomeraParser {
                 this.listings.push(listing);
                 existingNumbers.add(number);
                 count++;
+            } else {
+                // Логируем почему объявление отфильтровано
+                if (!listing.number) {
+                    console.log(`⏭️ [${i}] Пропущено: нет номера`);
+                } else if (listing.price > 0 && (listing.price < this.minPrice || listing.price > this.maxPrice)) {
+                    console.log(`⏭️ [${i}] Пропущено: ${number} цена ${listing.price} вне диапазона ${this.minPrice}-${this.maxPrice}`);
+                } else if (this.region && listing.region !== this.region) {
+                    console.log(`⏭️ [${i}] Пропущено: ${number} регион ${listing.region} не совпадает с ${this.region}`);
+                }
             }
         });
 
-        if (count === 0) {
-            console.log('⚠️ Новых объявлений не найдено в API ответе');
-        } else {
-            console.log(`✅ API ответ: найдено ${count} новых объявлений`);
-        }
+        console.log(`📊 API ответ: всего строк ${rows.length}, новых ${count}, всего собрано ${this.listings.length}`);
 
         return count;
     }
@@ -756,18 +787,21 @@ class AutonomeraParser {
      * Проверяет соответствие фильтрам
      */
     meetsFilters(listing) {
-        // Проверка цены
-        if (listing.price < this.minPrice || listing.price > this.maxPrice) {
+        // Проверка что есть номер
+        if (!listing.number) {
             return false;
+        }
+
+        // Проверка цены только если она указана
+        // Если цена = 0, мы все равно берем объявление, но логируем это
+        if (listing.price > 0) {
+            if (listing.price < this.minPrice || listing.price > this.maxPrice) {
+                return false;
+            }
         }
 
         // Проверка региона
         if (this.region && listing.region !== this.region) {
-            return false;
-        }
-
-        // Проверка что есть номер и цена
-        if (!listing.number || listing.price === 0) {
             return false;
         }
 
