@@ -4,6 +4,7 @@ meta:
 
 build:
   installCmd: npm ci
+  buildCmd: npx puppeteer browsers install chrome
   skip: false
 
 run:
@@ -15,3 +16,5 @@ run:
 env:
   - NODE_ENV=production
   - NODE_OPTIONS=--experimental-global-webcrypto
+  - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+  - PUPPETEER_EXECUTABLE_PATH=/root/.cache/puppeteer/chrome/linux-141.0.7390.122/chrome-linux64/chrome
