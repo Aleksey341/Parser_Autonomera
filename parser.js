@@ -67,11 +67,11 @@ class AutonomeraParser {
         try {
             await this.initBrowser();
 
-            // Парсим главную страницу
+            // Парсим главную страницу с загрузкой всех объявлений через "Показать еще"
             await this.parseMainPage();
 
-            // Если есть пагинация - парсим остальные страницы
-            await this.parseAdditionalPages();
+            // parseAdditionalPages больше не нужна, так как все грузится через "Показать еще"
+            // await this.parseAdditionalPages();
 
             console.log(`\n✅ Парсинг завершен!`);
             console.log(`📈 Всего объявлений: ${this.listings.length}`);
@@ -134,35 +134,15 @@ class AutonomeraParser {
     async parseMainPageWithLoadMore(page) {
         let startIndex = 0;
         const itemsPerLoad = 20;
-        const maxIterations = 50; // Максимум загрузок
+        const maxIterations = 500; // Максимум загрузок (может быть очень большой)
         let iteration = 0;
+        let consecutiveEmptyResponses = 0;
 
         while (iteration < maxIterations) {
-            // Получаем текущий HTML
-            const html = await page.content();
-            const $ = cheerio.load(html);
+            startIndex = iteration * itemsPerLoad;
 
-            // Парсим объявления с этой страницы
-            const initialCount = this.listings.length;
-            await this.parseListingsFromPage($, 1);
-
-            // Если не добавились новые объявления, конец
-            if (this.listings.length === initialCount && iteration > 0) {
-                console.log('✅ Новых объявлений не найдено - все загружены');
-                break;
-            }
-
-            // Проверяем наличие кнопки "Показать еще"
-            const buttonExists = await page.$('#loadScrollContentButton');
-            if (!buttonExists) {
-                console.log('✅ Кнопка "Показать еще" не найдена - все объявления загружены');
-                break;
-            }
-
-            startIndex += itemsPerLoad;
+            console.log(`\n👆 Загружаем объявления (запрос ${iteration + 1}, start=${startIndex})...`);
             iteration++;
-
-            console.log(`\n👆 Загружаем еще объявления (запрос ${iteration}, start=${startIndex})...`);
 
             try {
                 // Используем скрипт на странице для загрузки через jQuery
@@ -237,16 +217,24 @@ class AutonomeraParser {
                     const newCount = this.parseListingsFromAPIResponse($, existingNumbers);
 
                     if (newCount === 0) {
-                        console.log('✅ Новых объявлений не найдено - все загружены');
-                        break;
+                        consecutiveEmptyResponses++;
+                        if (consecutiveEmptyResponses >= 3) {
+                            console.log('✅ 3 подряд пустых ответа - все загружены');
+                            break;
+                        }
+                    } else {
+                        consecutiveEmptyResponses = 0;
                     }
                 } else {
-                    console.log('✅ Новых объявлений нет в ответе - все загружены');
-                    break;
+                    consecutiveEmptyResponses++;
+                    if (consecutiveEmptyResponses >= 3) {
+                        console.log('✅ Новых объявлений нет в ответе - все загружены');
+                        break;
+                    }
                 }
 
-                // Ждем загрузки новых данных
-                await this.delay(1000);
+                // Ждем загрузки новых данных (сокращенная задержка для быстрой загрузки)
+                await this.delay(200);
 
             } catch (error) {
                 console.log(`⚠️ Ошибка при загрузке данных: ${error.message}`);
