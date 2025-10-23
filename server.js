@@ -420,25 +420,44 @@ app.post('/api/sessions/:id/continue', async (req, res) => {
         });
 });
 
-// Обработчик 404
-app.use((req, res) => {
-    res.status(404).json({
-        error: 'Endpoint не найден',
-        path: req.path
-    });
-});
-
-// Обработчик ошибок
-app.use((err, req, res, next) => {
-    console.error('❌ Ошибка сервера:', err);
-    res.status(500).json({
-        error: 'Внутренняя ошибка сервера',
-        message: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
-});
-
-// Запуск сервера
 // === WEB-ИНТЕРФЕЙС ДЛЯ ЗАПУСКА ПАРСЕРА ===
+// ВАЖНО: эти маршруты ДОЛЖНЫ быть перед app.use() обработчиками!
+
+// GET / — главная страница с простой инструкцией
+app.get('/', (req, res) => {
+  res.type('html').send(`
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Парсер АВТОНОМЕРА777</title>
+    <style>
+      body { font-family: system-ui, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+      h1 { color: #333; }
+      .info { background: #f0f7ff; border-left: 4px solid #0066cc; padding: 15px; border-radius: 4px; margin: 20px 0; }
+      a { color: #0066cc; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      button { padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+      button:hover { background: #0052a3; }
+      code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; }
+    </style>
+    <h1>🚗 Парсер АВТОНОМЕРА777</h1>
+    <div class="info">
+      <p><strong>Используйте ссылку для запуска:</strong></p>
+      <p><code><a href="/run?priceMin=0&priceMax=10000000&region=" target="_blank">/run?priceMin=0&priceMax=10000000&region=</a></code></p>
+      <p>Параметры:</p>
+      <ul>
+        <li><code>priceMin</code> — минимальная цена (по умолчанию 0)</li>
+        <li><code>priceMax</code> — максимальная цена (по умолчанию 10000000)</li>
+        <li><code>region</code> — регион (опционально, по умолчанию все регионы)</li>
+      </ul>
+    </div>
+    <h2>Примеры ссылок:</h2>
+    <ul>
+      <li><a href="/run?priceMin=0&priceMax=1000000&region=77">/run?priceMin=0&priceMax=1000000&region=77</a> — Москва до 1млн</li>
+      <li><a href="/run?priceMin=0&priceMax=500000&region=78">/run?priceMin=0&priceMax=500000&region=78</a> — СПб до 500к</li>
+      <li><a href="/run">/run</a> — все номера без фильтра</li>
+    </ul>
+  `);
+});
 
 // GET /run — запускает парсер и редиректит на статус
 app.get('/run', async (req, res) => {
@@ -516,40 +535,21 @@ app.get('/session/:id', async (req, res) => {
   }
 });
 
-// GET / — главная страница с простой инструкцией
-app.get('/', (req, res) => {
-  res.type('html').send(`
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Парсер АВТОНОМЕРА777</title>
-    <style>
-      body { font-family: system-ui, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-      h1 { color: #333; }
-      .info { background: #f0f7ff; border-left: 4px solid #0066cc; padding: 15px; border-radius: 4px; margin: 20px 0; }
-      a { color: #0066cc; text-decoration: none; }
-      a:hover { text-decoration: underline; }
-      button { padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-      button:hover { background: #0052a3; }
-      code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; }
-    </style>
-    <h1>🚗 Парсер АВТОНОМЕРА777</h1>
-    <div class="info">
-      <p><strong>Используйте ссылку для запуска:</strong></p>
-      <p><code><a href="/run?priceMin=0&priceMax=10000000&region=" target="_blank">/run?priceMin=0&priceMax=10000000&region=</a></code></p>
-      <p>Параметры:</p>
-      <ul>
-        <li><code>priceMin</code> — минимальная цена (по умолчанию 0)</li>
-        <li><code>priceMax</code> — максимальная цена (по умолчанию 10000000)</li>
-        <li><code>region</code> — регион (опционально, по умолчанию все регионы)</li>
-      </ul>
-    </div>
-    <h2>Примеры ссылок:</h2>
-    <ul>
-      <li><a href="/run?priceMin=0&priceMax=1000000&region=77">/run?priceMin=0&priceMax=1000000&region=77</a> — Москва до 1млн</li>
-      <li><a href="/run?priceMin=0&priceMax=500000&region=78">/run?priceMin=0&priceMax=500000&region=78</a> — СПб до 500к</li>
-      <li><a href="/run">/run</a> — все номера без фильтра</li>
-    </ul>
-  `);
+// Обработчик 404
+app.use((req, res) => {
+    res.status(404).json({
+        error: 'Endpoint не найден',
+        path: req.path
+    });
+});
+
+// Обработчик ошибок
+app.use((err, req, res, next) => {
+    console.error('❌ Ошибка сервера:', err);
+    res.status(500).json({
+        error: 'Внутренняя ошибка сервера',
+        message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
 });
 
 const server = app.listen(PORT, () => {
