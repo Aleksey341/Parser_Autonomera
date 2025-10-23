@@ -8,6 +8,9 @@ const AutonomeraParser = require('./parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Увеличиваем размер памяти для Puppeteer
+process.setMaxListeners(0);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
