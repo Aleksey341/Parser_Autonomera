@@ -430,7 +430,13 @@ app.post('/api/sessions/:id/continue', async (req, res) => {
 // GET / — главная страница с простой инструкцией
 // GET / — главная страница
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      console.error('Error serving index.html:', err.message);
+      res.status(200).send('<!doctype html><html lang="ru"><meta charset="utf-8" /><title>OK</title><h1>Приложение запущено</h1></html>');
+    }
+  });
 });
 
 // GET /run — запускает парсер и редиректит на статус
