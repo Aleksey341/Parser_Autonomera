@@ -420,285 +420,6 @@ app.post('/api/sessions/:id/continue', async (req, res) => {
         });
 });
 
-// === WEB-ИНТЕРФЕЙС ДЛЯ ЗАПУСКА ПАРСЕРА ===
-
-// Главная страница с формой
-app.get('/', (req, res) => {
-    res.type('html').send(`
-<!doctype html>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Парсер АВТОНОМЕРА777</title>
-<style>
-  * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-    padding: 24px;
-    max-width: 600px;
-    margin: 0 auto;
-    background: #f5f5f5;
-  }
-  .container {
-    background: white;
-    padding: 32px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  }
-  h1 { color: #333; margin-top: 0; }
-  .form-group {
-    margin: 16px 0;
-  }
-  label {
-    display: block;
-    margin-bottom: 6px;
-    font-weight: 500;
-    color: #555;
-  }
-  input, select {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-  }
-  input:focus, select:focus {
-    outline: none;
-    border-color: #0066cc;
-    box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
-  }
-  button {
-    width: 100%;
-    padding: 12px;
-    font-size: 16px;
-    font-weight: 600;
-    background: #0066cc;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-top: 16px;
-  }
-  button:hover {
-    background: #0052a3;
-  }
-  button:active {
-    transform: scale(0.98);
-  }
-  .info {
-    margin-top: 20px;
-    padding: 12px;
-    background: #f0f7ff;
-    border-left: 4px solid #0066cc;
-    border-radius: 4px;
-    font-size: 13px;
-    color: #333;
-  }
-</style>
-
-<div class="container">
-  <h1>🚗 Парсер АВТОНОМЕРА777</h1>
-
-  <form action="/run" method="GET">
-    <div class="form-group">
-      <label for="priceMin">Минимальная цена (₽)</label>
-      <input type="number" id="priceMin" name="priceMin" value="0" min="0">
-    </div>
-
-    <div class="form-group">
-      <label for="priceMax">Максимальная цена (₽)</label>
-      <input type="number" id="priceMax" name="priceMax" value="10000000" min="0">
-    </div>
-
-    <div class="form-group">
-      <label for="region">Регион (опционально)</label>
-      <input type="text" id="region" name="region" placeholder="например: 77 или пусто для всех">
-    </div>
-
-    <button type="submit">Запустить парсинг</button>
-  </form>
-
-  <div class="info">
-    <strong>ℹ️ Как это работает:</strong><br>
-    1. Укажите параметры поиска<br>
-    2. Нажмите «Запустить парсинг»<br>
-    3. Будет загружено по 500 объявлений<br>
-    4. На странице статуса сможете продолжить парсинг или скачать результаты<br>
-    5. Экспортируйте в CSV или JSON
-  </div>
-</div>
-    `);
-});
-
-// GET /run — запуск парсинга
-app.get('/run', async (req, res) => {
-    const priceMin = Number(req.query.priceMin ?? 0);
-    const priceMax = Number(req.query.priceMax ?? 10000000);
-    const region = req.query.region?.toString().trim() || null;
-
-    try {
-        console.log(`🔍 Запуск парсинга: цена ${priceMin}-${priceMax}, регион: ${region || 'все'}`);
-
-        const result = await new Promise((resolve, reject) => {
-            const req = require('http').request('http://localhost:3000/api/parse', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            }, (res) => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
-                res.on('end', () => {
-                    try {
-                        resolve(JSON.parse(data));
-                    } catch (e) {
-                        reject(new Error(`Invalid JSON: ${data}`));
-                    }
-                });
-            });
-            req.on('error', reject);
-            req.write(JSON.stringify({ priceMin, priceMax, region }));
-            req.end();
-        });
-
-        const sessionId = result.sessionId;
-        if (!sessionId) {
-            return res.status(500).send('❌ Не удалось получить ID сессии');
-        }
-
-        console.log(`✅ Сессия создана: ${sessionId}`);
-        res.redirect(`/session/${encodeURIComponent(sessionId)}`);
-    } catch (e) {
-        console.error(`❌ Ошибка запуска: ${e.message}`);
-        res.status(500).type('html').send(`
-<div style="max-width:600px;margin:50px auto;padding:20px;font-family:system-ui">
-  <h2>❌ Ошибка запуска парсинга</h2>
-  <p>${String(e.message)}</p>
-  <a href="/">← Вернуться</a>
-</div>
-        `);
-    }
-});
-
-// GET /session/:id — страница статуса
-app.get('/session/:id', (req, res) => {
-    const id = req.params.id;
-    res.type('html').send(`
-<!doctype html>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Статус сессии</title>
-<style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-    padding: 24px;
-    max-width: 700px;
-    margin: 0 auto;
-    background: #f5f5f5;
-  }
-  .container {
-    background: white;
-    padding: 24px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  }
-  h1 { color: #333; margin-top: 0; }
-  .status { padding: 12px; border-radius: 4px; margin: 12px 0; }
-  .status.running { background: #cce5ff; color: #003d99; }
-  .status.paused { background: #fff3cd; color: #856404; }
-  .status.completed { background: #d4edda; color: #155724; }
-  .status.error { background: #f8d7da; color: #721c24; }
-  button, a.btn {
-    display: inline-block;
-    padding: 10px 16px;
-    margin-right: 8px;
-    margin-bottom: 8px;
-    font-size: 14px;
-    background: #0066cc;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    text-decoration: none;
-  }
-  button:hover, a.btn:hover { background: #0052a3; }
-  .log { background: #f8f8f8; padding: 12px; border-radius: 4px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
-  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #ccc; border-top-color: #0066cc; border-radius: 50%; animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-</style>
-
-<div class="container">
-  <h1>📊 Статус парсинга</h1>
-  <div id="status" class="status running">
-    <span class="spinner"></span> Загрузка статуса…
-  </div>
-
-  <div id="buttons" style="margin: 16px 0;"></div>
-
-  <div class="log" id="log">Ожидание данных…</div>
-</div>
-
-<script>
-const sessionId = ${JSON.stringify(id)};
-let lastStatus = null;
-
-const poll = async () => {
-  try {
-    const r = await fetch('/api/sessions/'+sessionId+'/status');
-    const s = await r.json();
-    lastStatus = s;
-
-    const status = document.getElementById('status');
-    status.className = 'status ' + (s.status || 'running');
-    status.textContent = '📊 Статус: ' + (s.status === 'completed' ? '✅ Завершено' :
-                                         s.status === 'paused' ? '⏸️ Приостановлено' :
-                                         s.status === 'error' ? '❌ Ошибка' : '🔄 Работает') +
-                       ' | Объявлений: ' + (s.listingsCount || 0);
-
-    const btns = document.getElementById('buttons');
-    btns.innerHTML = '';
-
-    if (s.status === 'paused') {
-      const btn = document.createElement('button');
-      btn.textContent = '▶️ Продолжить (ещё 500)';
-      btn.onclick = async () => {
-        btn.disabled = true;
-        await fetch('/api/sessions/'+sessionId+'/continue', {method:'POST'});
-        setTimeout(poll, 500);
-      };
-      btns.appendChild(btn);
-    }
-
-    const link1 = document.createElement('a');
-    link1.href = '/api/sessions/'+sessionId+'/data';
-    link1.className = 'btn';
-    link1.target = '_blank';
-    link1.textContent = '📋 Данные JSON';
-    btns.appendChild(link1);
-
-    const link2 = document.createElement('a');
-    link2.href = '/api/sessions/'+sessionId+'/export?format=csv';
-    link2.className = 'btn';
-    link2.textContent = '📥 Скачать CSV';
-    btns.appendChild(link2);
-
-    const link3 = document.createElement('a');
-    link3.href = '/';
-    link3.className = 'btn';
-    link3.style.background = '#666';
-    link3.textContent = '🏠 На главную';
-    btns.appendChild(link3);
-
-    document.getElementById('log').textContent = JSON.stringify(s, null, 2);
-  } catch(e) {
-    document.getElementById('status').className = 'status error';
-    document.getElementById('status').textContent = '❌ Ошибка: ' + e.message;
-  }
-};
-
-setInterval(poll, 2000);
-poll();
-</script>
-    `);
-});
-
 // Обработчик 404
 app.use((req, res) => {
     res.status(404).json({
@@ -717,10 +438,127 @@ app.use((err, req, res, next) => {
 });
 
 // Запуск сервера
+// === WEB-ИНТЕРФЕЙС ДЛЯ ЗАПУСКА ПАРСЕРА ===
+
+// GET /run — запускает парсер и редиректит на статус
+app.get('/run', async (req, res) => {
+  const priceMin = Number(req.query.priceMin ?? 0);
+  const priceMax = Number(req.query.priceMax ?? 10000000);
+  const region   = (req.query.region || '').toString().trim() || null;
+
+  try {
+    const r = await fetch('http://localhost:3000/api/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priceMin, priceMax, region })
+    });
+    if (!r.ok) return res.status(500).send(await r.text());
+
+    const data = await r.json();
+    const id = data.sessionId || data.id;
+    return res.redirect(`/session/${id}`);
+  } catch (e) {
+    return res.status(500).send(String(e));
+  }
+});
+
+// GET /session/:id — простейшая страница статуса
+app.get('/session/:id', async (req, res) => {
+  const id = req.params.id;
+  try {
+    const r = await fetch(`http://localhost:3000/api/sessions/${id}/status`);
+    const s = await r.json();
+    res.type('html').send(`
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Статус парсинга</title>
+      <style>
+        body { font-family: system-ui, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        h1 { color: #333; }
+        .status { padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .status.running { background: #e3f2fd; color: #1976d2; }
+        .status.paused { background: #fff3e0; color: #f57c00; }
+        .status.completed { background: #e8f5e9; color: #388e3c; }
+        .status.error { background: #ffebee; color: #d32f2f; }
+        a, button { padding: 8px 12px; margin: 5px; border-radius: 4px; text-decoration: none; display: inline-block; }
+        a { background: #0066cc; color: white; }
+        button { background: #0066cc; color: white; border: none; cursor: pointer; font-size: 14px; }
+        a:hover, button:hover { background: #0052a3; }
+        .links { margin: 20px 0; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+      </style>
+      <h1>🔄 Статус парсинга</h1>
+      <div class="status ${s.status}">
+        <strong>Статус:</strong> ${s.status}
+        ${s.processed ? ` | <strong>Обработано:</strong> ${s.processed}` : ''}
+      </div>
+      <div class="links">
+        <a href="/api/sessions/${id}/data" target="_blank">📊 Данные</a>
+        <a href="/api/sessions/${id}/export?format=json" target="_blank">📄 JSON</a>
+        <a href="/api/sessions/${id}/export?format=csv" target="_blank">📋 CSV</a>
+        ${s.status === 'paused' ? `<form method="POST" action="/api/sessions/${id}/continue" style="display:inline;"><button>▶️ Продолжить (ещё 500)</button></form>` : ''}
+        <a href="/">🏠 На главную</a>
+      </div>
+      <pre>${JSON.stringify(s, null, 2)}</pre>
+      <script>
+        if ('${s.status}' !== 'completed' && '${s.status}' !== 'error') {
+          setTimeout(() => location.reload(), 3000);
+        }
+      </script>
+    `);
+  } catch (e) {
+    res.status(500).type('html').send(`
+      <meta charset="utf-8">
+      <h1>❌ Ошибка</h1>
+      <p>${String(e)}</p>
+      <a href="/">На главную</a>
+    `);
+  }
+});
+
+// GET / — главная страница с простой инструкцией
+app.get('/', (req, res) => {
+  res.type('html').send(`
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Парсер АВТОНОМЕРА777</title>
+    <style>
+      body { font-family: system-ui, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+      h1 { color: #333; }
+      .info { background: #f0f7ff; border-left: 4px solid #0066cc; padding: 15px; border-radius: 4px; margin: 20px 0; }
+      a { color: #0066cc; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      button { padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+      button:hover { background: #0052a3; }
+      code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; }
+    </style>
+    <h1>🚗 Парсер АВТОНОМЕРА777</h1>
+    <div class="info">
+      <p><strong>Используйте ссылку для запуска:</strong></p>
+      <p><code><a href="/run?priceMin=0&priceMax=10000000&region=" target="_blank">/run?priceMin=0&priceMax=10000000&region=</a></code></p>
+      <p>Параметры:</p>
+      <ul>
+        <li><code>priceMin</code> — минимальная цена (по умолчанию 0)</li>
+        <li><code>priceMax</code> — максимальная цена (по умолчанию 10000000)</li>
+        <li><code>region</code> — регион (опционально, по умолчанию все регионы)</li>
+      </ul>
+    </div>
+    <h2>Примеры ссылок:</h2>
+    <ul>
+      <li><a href="/run?priceMin=0&priceMax=1000000&region=77">/run?priceMin=0&priceMax=1000000&region=77</a> — Москва до 1млн</li>
+      <li><a href="/run?priceMin=0&priceMax=500000&region=78">/run?priceMin=0&priceMax=500000&region=78</a> — СПб до 500к</li>
+      <li><a href="/run">/run</a> — все номера без фильтра</li>
+    </ul>
+  `);
+});
+
 const server = app.listen(PORT, () => {
     console.log(`\n🚀 API сервер запущен на http://localhost:${PORT}`);
     console.log(`📚 API документация доступна на http://localhost:${PORT}/api/health`);
     console.log(`\n📍 Основные endpoints:`);
+    console.log(`   GET    /                               - главная страница`);
+    console.log(`   GET    /run                            - запуск парсера с редиректом на статус`);
+    console.log(`   GET    /session/:id                    - страница статуса сессии`);
     console.log(`   POST   /api/parse                      - начать парсинг`);
     console.log(`   GET    /api/sessions                   - список сессий`);
     console.log(`   GET    /api/sessions/:id/status        - статус сессии (с инфо о батчах)`);
@@ -730,9 +568,9 @@ const server = app.listen(PORT, () => {
     console.log(`   POST   /api/sessions/:id/continue      - продолжить парсинг (батч по 500)`);
     console.log(`   DELETE /api/sessions/:id               - удалить сессию`);
     console.log(`\n⚡ НОВОЕ: Парсер загружает по 500 объявлений, затем паузирует!`);
-    console.log(`   1. Начните парсинг: POST /api/parse`);
-    console.log(`   2. Проверьте статус: GET /api/sessions/:id/status`);
-    console.log(`   3. При статусе "paused" продолжите: POST /api/sessions/:id/continue`);
+    console.log(`   1. Начните парсинг: GET /run?priceMin=0&priceMax=10000000&region=`);
+    console.log(`   2. Автоматический редирект на /session/:id`);
+    console.log(`   3. При статусе "paused" нажмите "Продолжить"`);
 });
 
 // Обработчик закрытия
