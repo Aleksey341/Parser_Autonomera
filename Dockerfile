@@ -42,6 +42,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PUPPETEER_CACHE_DIR=/tmp/puppeteer
 
+# Cache bust to force rebuild (2025-10-23 22:05)
 COPY --from=builder /app/node_modules ./node_modules
 COPY . .
 
