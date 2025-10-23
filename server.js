@@ -18,8 +18,6 @@ app.use(express.json());
 // Не шумим favicon
 app.get('/favicon.ico', (req, res) => res.sendStatus(204));
 
-app.use(express.static('public'));
-
 // Хранилище активных сессий парсинга
 const sessions = new Map();
 
