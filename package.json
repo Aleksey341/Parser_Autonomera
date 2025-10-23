@@ -1,6 +1,6 @@
 {
   "name": "autonomera777-parser",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Parser for autonomera777.net - Russian license plate marketplace. Collect vehicle registration numbers, prices, and seller information.",
   "main": "server.js",
   "scripts": {
