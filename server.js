@@ -14,6 +14,10 @@ process.setMaxListeners(0);
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Не шумим favicon
+app.get('/favicon.ico', (req, res) => res.sendStatus(204));
+
 app.use(express.static('public'));
 
 // Хранилище активных сессий парсинга
@@ -504,9 +508,6 @@ app.get('/session/:id', async (req, res) => {
     `);
   }
 });
-
-// Убрать шум по favicon
-app.get('/favicon.ico', (req, res) => res.sendStatus(204));
 
 // Обработчик 404
 app.use((req, res) => {
