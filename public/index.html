@@ -524,7 +524,7 @@
                 <div class="progress-fill" id="progressFill"></div>
             </div>
             <div class="progress-text">
-                Статус: <strong id="sessionStatus">Выполняется...</strong> | Объявлений загруженно: <strong id="loadedCount">0</strong>
+                Статус: <strong id="sessionStatus">Выполняется...</strong> | Объявлений загружено: <strong id="loadedCount">0</strong>
             </div>
             <div id="statusMessage"></div>
         </div>
@@ -610,7 +610,7 @@
                             <tr>
                                 <th>Регион</th>
                                 <th>Объявлений</th>
-                                <th>Среднее цена</th>
+                                <th>Средняя цена</th>
                             </tr>
                         </thead>
                         <tbody id="regionsBody">
@@ -724,21 +724,34 @@
         }
 
         async function loadResults() {
-            if (!currentSessionId) return;
+            if (!currentSessionId) {
+                console.log('❌ Session ID не установлен');
+                return;
+            }
 
             try {
+                console.log('📥 Загружаем результаты для сессии:', currentSessionId);
                 const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/data`);
-                if (!response.ok) throw new Error('Failed to load data');
+                console.log('📊 Ответ от сервера:', response.status);
+
+                if (!response.ok) {
+                    throw new Error(`Ошибка ${response.status}: ${response.statusText}`);
+                }
 
                 const result = await response.json();
+                console.log('📋 Результат:', result);
+
                 allData = result.listings || [];
                 filteredData = [...allData];
+
+                console.log(`✅ Загруженно ${allData.length} объявлений`);
 
                 displayResults();
                 updateStats();
 
             } catch (error) {
-                console.error('Ошибка при загрузке результатов:', error);
+                console.error('❌ Ошибка при загрузке результатов:', error);
+                showMessage('error', `Ошибка загрузки: ${error.message}`);
             }
         }
 
