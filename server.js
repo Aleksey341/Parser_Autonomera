@@ -218,7 +218,7 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(JSON.stringify(session.listings, null, 2));
     } else if (format === 'xlsx' || format === 'excel') {
-        // Excel XLSX формат - самый надежный для Excel
+        // Excel XLSX формат - используем CSV с правильным форматированием
         const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Продавец', 'Регион', 'URL'];
         const rows = session.listings.map(item => [
             item.number || '',
@@ -231,22 +231,27 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
             item.url || ''
         ]);
 
-        // Создаем CSV с правильными кавычками для Excel
-        let csvContent = '\ufeff'; // UTF-8 BOM
-        csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+        // Добавляем header в начало
+        const dataToExport = [headers, ...rows];
 
-        rows.forEach(row => {
-            csvContent += row.map(cell => {
-                // Экранируем кавычки и оборачиваем в кавычки
-                const escaped = String(cell).replace(/"/g, '""');
-                return `"${escaped}"`;
-            }).join(',') + '\n';
+        // Используем csv-stringify для правильного экспорта
+        const csvContent = stringify(dataToExport, {
+            delimiter: ',',
+            quoted: true,
+            quoted_string: true,
+            escape: '"',
+            encoding: 'utf8'
         });
 
         const filename = `autonomera777_${new Date().toISOString().split('T')[0]}.xlsx`;
         const filepath = path.join(process.cwd(), filename);
 
-        fs.writeFileSync(filepath, csvContent, 'utf8');
+        // Добавляем BOM для корректного отображения в Excel
+        const bom = Buffer.from('\ufeff', 'utf8');
+        const content = Buffer.concat([bom, Buffer.from(csvContent, 'utf8')]);
+
+        // Сохраняем файл
+        fs.writeFileSync(filepath, content);
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -256,7 +261,7 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
             }
         });
     } else {
-        // CSV по умолчанию - сохраняем на диск и отправляем статическим файлом
+        // CSV по умолчанию - используем csv-stringify для правильного форматирования
         const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Продавец', 'Регион', 'URL'];
         const rows = session.listings.map(item => [
             item.number || '',
@@ -269,25 +274,29 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
             item.url || ''
         ]);
 
-        // Создаем CSV с правильными кавычками
-        let csvContent = '\ufeff'; // UTF-8 BOM
-        csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+        // Добавляем header в начало
+        const dataToExport = [headers, ...rows];
 
-        rows.forEach(row => {
-            csvContent += row.map(cell => {
-                // Экранируем кавычки и оборачиваем в кавычки
-                const escaped = String(cell).replace(/"/g, '""');
-                return `"${escaped}"`;
-            }).join(',') + '\n';
+        // Используем csv-stringify для правильного экспорта
+        const csvContent = stringify(dataToExport, {
+            delimiter: ',',
+            quoted: true,
+            quoted_string: true,
+            escape: '"',
+            encoding: 'utf8'
         });
 
         const filename = `autonomera777_${new Date().toISOString().split('T')[0]}.csv`;
         const filepath = path.join(process.cwd(), filename);
 
-        // Сохраняем файл с правильной кодировкой UTF-8
-        fs.writeFileSync(filepath, csvContent, 'utf8');
+        // Добавляем BOM для корректного отображения в Excel
+        const bom = Buffer.from('\ufeff', 'utf8');
+        const content = Buffer.concat([bom, Buffer.from(csvContent, 'utf8')]);
 
-        // Отправляем файл со статическими заголовками
+        // Сохраняем файл
+        fs.writeFileSync(filepath, content);
+
+        // Отправляем файл
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.download(filepath, filename, (err) => {
