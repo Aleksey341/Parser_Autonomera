@@ -433,10 +433,49 @@ app.post('/api/sessions/:id/continue', async (req, res) => {
 
 // GET / — главная страница с простой инструкцией
 // GET / — главная страница
-app.get('/', (req, res) => {
-  console.log('✅ GET / запрос получен');
-  // Просто вернём встроенный HTML - это самое надёжное решение
-  res.type('html').send('<!doctype html><html lang="ru"><meta charset="utf-8" /><title>OK</title><h1>Приложение запущено</h1></html>');
+app.get('/', (_req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+      <meta charset="utf-8">
+      <title>Autonomera777 Parser</title>
+      <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        h1 { color: #333; }
+        p { color: #666; line-height: 1.6; }
+        a { color: #0066cc; text-decoration: none; margin-right: 15px; }
+        a:hover { text-decoration: underline; }
+      </style>
+    </head>
+    <body>
+      <h1>🚀 Autonomera777 Parser</h1>
+      <p>Сервер работает корректно!</p>
+
+      <h2>Доступные операции:</h2>
+      <ul>
+        <li><a href="/run">▶️ Запустить парсинг</a> — начать сбор данных</li>
+        <li><a href="/api/health">🏥 /api/health</a> — проверка статуса</li>
+        <li><a href="/api/sessions">📊 /api/sessions</a> — список активных сессий</li>
+      </ul>
+
+      <h2>API Endpoints:</h2>
+      <pre>
+GET    /                               - эта страница
+GET    /run                            - запуск парсера
+GET    /session/:id                    - статус сессии
+POST   /api/parse                      - начать парсинг
+GET    /api/health                     - проверка здоровья
+GET    /api/sessions                   - список сессий
+GET    /api/sessions/:id/status        - статус конкретной сессии
+GET    /api/sessions/:id/data          - данные парсинга
+GET    /api/sessions/:id/export        - экспорт (csv/json)
+POST   /api/sessions/:id/continue      - продолжить парсинг
+DELETE /api/sessions/:id               - удалить сессию
+      </pre>
+    </body>
+    </html>
+  `);
 });
 
 // GET /run — запускает парсер и редиректит на статус
