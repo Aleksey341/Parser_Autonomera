@@ -1,95 +1,163 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Autonomera777 Parser — управление парсингом</title>
-  <link rel="stylesheet" href="/styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Парсер АВТОНОМЕРА777</title>
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>🚀 Autonomera777 Parser</h1>
-      <p>Система управления и сбора данных об объявлениях</p>
-      <div class="status-badge">✓ Инициализация...</div>
-    </header>
-
-    <main>
-      <!-- Доступные операции -->
-      <section>
-        <h2>⚡ Доступные операции</h2>
-        <div class="operations">
-          <div class="operation-card">
-            <a href="/run">▶️ Запустить парсинг</a>
-            <p>Начать сбор данных об объявлениях</p>
-          </div>
-          <div class="operation-card">
-            <a href="/api/health">🏥 Проверка статуса</a>
-            <p>Убедиться, что сервер работает</p>
-          </div>
-          <div class="operation-card">
-            <a href="/api/sessions">📊 Активные сеансы</a>
-            <p>Список всех текущих сеансов парсинга</p>
-          </div>
+    <div class="container">
+        <div class="header">
+            <h1>🚗 Парсер АВТОНОМЕРА777</h1>
+            <p>Автоматический сбор данных об объявлениях автомобильных номеров с реального сайта</p>
         </div>
-      </section>
 
-      <!-- API Endpoints -->
-      <section>
-        <h2>📡 API Endpoints</h2>
-        <p>Полный список доступных API маршрутов для управления парсингом:</p>
-        <div class="api-endpoints">
-          <pre>
-<strong>GET  /</strong>                                   - эта страница
-<strong>GET  /run</strong>                              - веб-интерфейс запуска парсера
+        <div class="controls">
+            <h2 style="margin-bottom: 20px; color: #333;">Параметры парсинга</h2>
 
-<strong>POST   /api/parse</strong>                        - начать новую сессию парсинга
-<strong>GET    /api/health</strong>                      - проверка здоровья сервера
-<strong>GET    /api/sessions</strong>                    - список всех активных сеансов
-<strong>GET    /api/sessions/:id/status</strong>        - получить статус конкретной сеансии
-<strong>GET    /api/sessions/:id/data</strong>          - получить собранные данные
-<strong>GET    /api/sessions/:id/export</strong>        - экспорт данных (csv/json)
-<strong>POST   /api/sessions/:id/continue</strong>      - продолжить приостановленный парсинг
-<strong>DELETE /api/sessions/:id</strong>               - удалить сеансию и её данные
-          </pre>
+            <div class="control-group">
+                <div class="control-item">
+                    <label for="minPrice">Минимальная цена (₽)</label>
+                    <input type="number" id="minPrice" placeholder="0" value="0">
+                </div>
+                <div class="control-item">
+                    <label for="maxPrice">Максимальная цена (₽)</label>
+                    <input type="number" id="maxPrice" placeholder="10000000" value="10000000">
+                </div>
+                <div class="control-item">
+                    <label for="region">Регион (код, опционально)</label>
+                    <input type="text" id="region" placeholder="77, 50, 78...">
+                </div>
+            </div>
+
+
+            <div class="button-group">
+                <button class="btn-primary" id="startBtn" onclick="startParsing()">
+                    <span class="spinner" id="spinner" style="display: none; margin-right: 8px;"></span>
+                    Начать парсинг
+                </button>
+                <button class="btn-primary" id="continueBtn" onclick="continueParsing()" disabled style="display: none;">
+                    <span class="spinner" id="spinnerContinue" style="display: none; margin-right: 8px;"></span>
+                    ▶️ Продолжить (батч +500)
+                </button>
+                <button class="btn-secondary" id="stopBtn" onclick="stopParsing()" disabled>
+                    Остановить
+                </button>
+                <button class="btn-export" id="exportBtn" onclick="exportData()" disabled>
+                    📥 Экспортировать
+                </button>
+            </div>
         </div>
-      </section>
 
-      <!-- Информация -->
-      <section>
-        <h2>ℹ️ Информация</h2>
-        <p>
-          Этот сервис позволяет автоматизировать сбор данных об объявлениях с сайта
-          <strong>autonomera777.net</strong>. Система поддерживает:
-        </p>
-        <ul>
-          <li>📍 Фильтрацию по цене и региону</li>
-          <li>📊 Батч-обработку с приостановкой/возобновлением</li>
-          <li>💾 Экспорт в CSV и JSON форматах</li>
-          <li>🔄 Отслеживание прогресса парсинга в реальном времени</li>
-          <li>⏱️ Настраиваемые задержки между запросами</li>
-        </ul>
-      </section>
+        <div class="progress-section" id="progressSection">
+            <div class="progress-text">
+                <strong>Статус:</strong> <span id="statusText">Инициализация...</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text">
+                Статус: <strong id="sessionStatus">Выполняется...</strong> | Объявлений загружено: <strong id="loadedCount">0</strong>
+            </div>
+            <div id="statusMessage"></div>
+        </div>
 
-      <!-- Быстрый старт -->
-      <section>
-        <h2>🚀 Быстрый старт</h2>
-        <ol>
-          <li>Нажмите на "<strong>Запустить парсинг</strong>" или откройте <code>/run</code></li>
-          <li>Установите желаемые параметры (цена, регион, количество страниц)</li>
-          <li>Запустите процесс и следите за прогрессом</li>
-          <li>При завершении экспортируйте данные в удобном вам формате</li>
-        </ol>
-      </section>
-    </main>
+        <div class="results-section">
+            <div class="results-header">
+                <h2>Результаты парсинга</h2>
+                <div style="color: #666; font-size: 14px;">
+                    Обновлено: <span id="lastUpdate">никогда</span>
+                </div>
+            </div>
 
-    <footer>
-      <p>Autonomera777 Parser © 2025 | Все права защищены</p>
-      <p>Для получения справки используйте команду <code>/help</code></p>
-    </footer>
-  </div>
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('overview')">📊 Обзор</button>
+                <button class="tab-btn" onclick="switchTab('data')">📋 Данные</button>
+                <button class="tab-btn" onclick="switchTab('regions')">🌍 По регионам</button>
+            </div>
 
-  <!-- Основной JavaScript файл -->
-  <script src="/main.js" defer></script>
+            <div id="overview" class="tab-content active">
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="stat-value" id="totalCount">0</div>
+                        <div class="stat-label">Всего объявлений</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="avgPrice">₽0</div>
+                        <div class="stat-label">Средняя цена</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="minPriceResult">₽0</div>
+                        <div class="stat-label">Минимальная цена</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="maxPriceResult">₽0</div>
+                        <div class="stat-label">Максимальная цена</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="uniqueRegions">0</div>
+                        <div class="stat-label">Уникальных регионов</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="uniqueSellers">0</div>
+                        <div class="stat-label">Уникальных продавцов</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="data" class="tab-content">
+                <div class="filters">
+                    <div class="filter-row">
+                        <div class="filter-item" style="flex: 2;">
+                            <label for="searchFilter">Поиск по номеру или продавцу</label>
+                            <input type="text" id="searchFilter" placeholder="Введите для фильтрации...">
+                        </div>
+                        <div class="filter-item">
+                            <label for="statusFilter">Статус</label>
+                            <select id="statusFilter">
+                                <option value="">Все статусы</option>
+                                <option value="активно">Активно</option>
+                                <option value="снято">Снято</option>
+                            </select>
+                        </div>
+                        <div class="filter-buttons">
+                            <button class="btn-secondary" onclick="applyFilters()">Применить</button>
+                            <button class="btn-secondary" onclick="resetFilters()">Сброс</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive" id="tableContainer">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <h3>Нет данных</h3>
+                        <p>Нажмите "Начать парсинг" для загрузки объявлений</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="regions" class="tab-content">
+                <div class="table-responsive">
+                    <table id="regionsTable">
+                        <thead>
+                            <tr>
+                                <th>Регион</th>
+                                <th>Объявлений</th>
+                                <th>Средняя цена</th>
+                            </tr>
+                        </thead>
+                        <tbody id="regionsBody">
+                            <tr>
+                                <td colspan="3" style="text-align: center; color: #999;">Нет данных</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/main.js" defer></script>
 </body>
 </html>
