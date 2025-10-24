@@ -219,19 +219,21 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(JSON.stringify(session.listings, null, 2));
     } else if (format === 'xlsx' || format === 'excel') {
-        // Excel XLSX формат с красивым форматированием
-        const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Регион'];
+        // Excel XLSX формат с красивым форматированием и добавленным URL
+        const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Регион', 'URL'];
         const rows = session.listings.map(item => [
             item.number || '',
             item.price || '',
             item.datePosted || '',
             item.dateUpdated || '',
             item.status || '',
-            item.region || ''
+            item.region || '',
+            item.url || ''
         ]);
 
-        // Создаем рабочую книгу
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        // Создаем рабочую книгу с данными
+        const ws_data = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Объявления');
 
@@ -245,18 +247,21 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
         // Применяем стили к заголовкам
         for (let i = 0; i < headers.length; i++) {
             const cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
-            ws[cellRef].s = headerStyle;
+            if (ws[cellRef]) {
+                ws[cellRef].s = headerStyle;
+            }
         }
 
         // Автоматически подстраиваем размер колонок
-        const colWidths = headers.map((header, idx) => {
-            let maxWidth = header.length;
+        const colWidths = [];
+        for (let i = 0; i < headers.length; i++) {
+            let maxWidth = headers[i] ? headers[i].toString().length : 0;
             rows.forEach(row => {
-                const cellValue = String(row[idx] || '').length;
+                const cellValue = row[i] ? String(row[i]).length : 0;
                 if (cellValue > maxWidth) maxWidth = cellValue;
             });
-            return { wch: Math.min(maxWidth + 2, 50) }; // +2 для паддинга, макс 50
-        });
+            colWidths.push({ wch: Math.min(maxWidth + 2, 60) }); // +2 для паддинга, макс 60
+        }
         ws['!cols'] = colWidths;
 
         // Устанавливаем высоту строк
@@ -265,16 +270,26 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
         const filename = `autonomera777_${new Date().toISOString().split('T')[0]}.xlsx`;
         const filepath = path.join(process.cwd(), filename);
 
-        // Сохраняем файл
-        XLSX.writeFile(wb, filepath);
+        // Сохраняем файл напрямую через writeFile
+        try {
+            XLSX.writeFile(wb, filepath);
 
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.download(filepath, filename, (err) => {
-            if (err) {
-                console.error('Ошибка при отправке файла:', err);
-            }
-        });
+            // Отправляем файл
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.download(filepath, filename, (err) => {
+                if (err) {
+                    console.error('Ошибка при отправке файла:', err);
+                }
+                // Удаляем временный файл
+                fs.unlink(filepath, (unlinkErr) => {
+                    if (unlinkErr) console.error('Ошибка удаления файла:', unlinkErr);
+                });
+            });
+        } catch (err) {
+            console.error('Ошибка создания XLSX файла:', err);
+            res.status(500).json({ error: 'Ошибка при создании Excel файла' });
+        }
     } else {
         // CSV по умолчанию - используем csv-stringify для правильного форматирования
         const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Регион'];

@@ -224,6 +224,7 @@ function displayResults() {
                 <td>${item.dateUpdated}</td>
                 <td><span class="status-badge ${statusClass}">${item.status}</span></td>
                 <td>${item.region}</td>
+                <td><a href="${item.url}" class="number-link" target="_blank">Перейти</a></td>
             </tr>
         `;
     }
@@ -238,6 +239,7 @@ function displayResults() {
                     <th>Дата обновления</th>
                     <th>Статус</th>
                     <th>Регион</th>
+                    <th>URL</th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
