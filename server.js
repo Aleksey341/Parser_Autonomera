@@ -16,7 +16,11 @@ app.use(cors());
 app.use(express.json());
 
 // Trust proxy - для работы с Amvera и другими обратными прокси
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
+
+// Раздача статических файлов (CSS, JS и т.д.)
+const __dirname = path.dirname(require.main.filename);
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Логирование всех запросов для отладки
 app.use((req, res, next) => {

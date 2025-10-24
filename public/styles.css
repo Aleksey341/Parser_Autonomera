@@ -1,0 +1,194 @@
+/* Main Styles for Autonomera777 Parser */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 40px 30px;
+  text-align: center;
+}
+
+header h1 {
+  font-size: 2.5em;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+header p {
+  font-size: 1.1em;
+  opacity: 0.95;
+  margin-bottom: 5px;
+}
+
+main {
+  padding: 40px 30px;
+}
+
+section {
+  margin-bottom: 40px;
+}
+
+section h2 {
+  color: #333;
+  margin-bottom: 20px;
+  font-size: 1.8em;
+  border-bottom: 3px solid #667eea;
+  padding-bottom: 10px;
+}
+
+.operations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.operation-card {
+  background: #f8f9ff;
+  border: 2px solid #667eea;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.operation-card:hover {
+  background: #667eea;
+  color: white;
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+}
+
+.operation-card a {
+  color: inherit;
+  text-decoration: none;
+  display: block;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.operation-card p {
+  color: #666;
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+
+.operation-card:hover p {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.api-endpoints {
+  background: #f8f9ff;
+  border-radius: 8px;
+  padding: 20px;
+  overflow-x: auto;
+}
+
+pre {
+  background: #2d2d2d;
+  color: #f8f8f2;
+  padding: 20px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.9em;
+  line-height: 1.5;
+  font-family: 'Courier New', monospace;
+}
+
+code {
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  color: #764ba2;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.status-badge {
+  display: inline-block;
+  background: #4caf50;
+  color: white;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.85em;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+ul, ol {
+  margin-left: 20px;
+  color: #555;
+  line-height: 1.8;
+}
+
+li {
+  margin-bottom: 12px;
+}
+
+a {
+  color: #667eea;
+  text-decoration: none;
+  transition: color 0.3s ease;
+  font-weight: 600;
+}
+
+a:hover {
+  color: #764ba2;
+  text-decoration: underline;
+}
+
+footer {
+  background: #f5f5f5;
+  padding: 20px;
+  text-align: center;
+  color: #999;
+  font-size: 0.9em;
+  border-top: 1px solid #e0e0e0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  header h1 {
+    font-size: 1.8em;
+  }
+
+  .container {
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .operations {
+    grid-template-columns: 1fr;
+  }
+
+  main {
+    padding: 20px 15px;
+  }
+}
