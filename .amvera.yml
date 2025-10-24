@@ -11,6 +11,9 @@ run:
   scriptName: server.js
   containerPort: 3000
   nodeArguments: --experimental-global-webcrypto
+  healthCheckPath: /api/health
+  healthCheckInitialDelay: 10
+  healthCheckInterval: 10
 
 env:
   - NODE_ENV=production
