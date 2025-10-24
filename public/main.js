@@ -271,7 +271,7 @@ async function updateStats() {
 
                 regionRows += `
                     <tr>
-                        <td>${region}</td>
+                        <td><a href="#" class="region-link" onclick="filterByRegion('${region}'); return false;">📍 ${region}</a></td>
                         <td>${regionListings.length}</td>
                         <td>₽${avgPrice.toLocaleString('ru-RU')}</td>
                     </tr>
@@ -307,6 +307,27 @@ function resetFilters() {
     document.getElementById('statusFilter').value = '';
     filteredData = [...allData];
     displayResults();
+}
+
+/**
+ * Фильтрует результаты по выбранному региону и переходит на вкладку "Данные"
+ */
+function filterByRegion(region) {
+    // Очищаем существующие фильтры
+    document.getElementById('searchFilter').value = '';
+    document.getElementById('statusFilter').value = '';
+
+    // Фильтруем по региону
+    filteredData = allData.filter(item => item.region === region);
+
+    // Обновляем таблицу результатов
+    displayResults();
+
+    // Переходим на вкладку "Данные"
+    switchTab('data');
+
+    // Показываем сообщение
+    showMessage('info', `🔍 Показаны объявления из региона: ${region} (${filteredData.length} объявлений)`);
 }
 
 async function exportData() {
