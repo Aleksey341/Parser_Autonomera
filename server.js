@@ -15,6 +15,12 @@ process.setMaxListeners(0);
 app.use(cors());
 app.use(express.json());
 
+// Логирование всех запросов для отладки
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path}`);
+  next();
+});
+
 // Не шумим favicon
 app.get('/favicon.ico', (req, res) => res.sendStatus(204));
 
@@ -428,6 +434,7 @@ app.post('/api/sessions/:id/continue', async (req, res) => {
 // GET / — главная страница с простой инструкцией
 // GET / — главная страница
 app.get('/', (req, res) => {
+  console.log('✅ GET / запрос получен');
   // Просто вернём встроенный HTML - это самое надёжное решение
   res.type('html').send('<!doctype html><html lang="ru"><meta charset="utf-8" /><title>OK</title><h1>Приложение запущено</h1></html>');
 });
@@ -510,9 +517,11 @@ app.get('/session/:id', async (req, res) => {
 
 // Обработчик 404
 app.use((req, res) => {
+    console.log(`❌ 404: ${req.method} ${req.path} не найден`);
     res.status(404).json({
         error: 'Endpoint не найден',
-        path: req.path
+        path: req.path,
+        method: req.method
     });
 });
 
