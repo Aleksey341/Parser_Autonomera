@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const { stringify } = require('csv-stringify/sync');
+const XLSX = require('xlsx');
 const AutonomeraParser = require('./parser');
 
 const app = express();
@@ -218,40 +219,54 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(JSON.stringify(session.listings, null, 2));
     } else if (format === 'xlsx' || format === 'excel') {
-        // Excel XLSX формат - используем CSV с правильным форматированием
-        const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Продавец', 'Регион', 'URL'];
+        // Excel XLSX формат с красивым форматированием
+        const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Регион'];
         const rows = session.listings.map(item => [
             item.number || '',
             item.price || '',
             item.datePosted || '',
             item.dateUpdated || '',
             item.status || '',
-            item.seller || '',
-            item.region || '',
-            item.url || ''
+            item.region || ''
         ]);
 
-        // Добавляем header в начало
-        const dataToExport = [headers, ...rows];
+        // Создаем рабочую книгу
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Объявления');
 
-        // Используем csv-stringify для правильного экспорта
-        const csvContent = stringify(dataToExport, {
-            delimiter: ',',
-            quoted: true,
-            quoted_string: true,
-            escape: '"',
-            encoding: 'utf8'
+        // Форматирование шапки (серый фон)
+        const headerStyle = {
+            fill: { fgColor: { rgb: 'FFD3D3D3' } }, // Серый цвет
+            font: { bold: true, color: { rgb: 'FF000000' } }, // Черный текст
+            alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+        };
+
+        // Применяем стили к заголовкам
+        for (let i = 0; i < headers.length; i++) {
+            const cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
+            ws[cellRef].s = headerStyle;
+        }
+
+        // Автоматически подстраиваем размер колонок
+        const colWidths = headers.map((header, idx) => {
+            let maxWidth = header.length;
+            rows.forEach(row => {
+                const cellValue = String(row[idx] || '').length;
+                if (cellValue > maxWidth) maxWidth = cellValue;
+            });
+            return { wch: Math.min(maxWidth + 2, 50) }; // +2 для паддинга, макс 50
         });
+        ws['!cols'] = colWidths;
+
+        // Устанавливаем высоту строк
+        ws['!rows'] = [{ hpx: 25 }]; // Высота заголовка
 
         const filename = `autonomera777_${new Date().toISOString().split('T')[0]}.xlsx`;
         const filepath = path.join(process.cwd(), filename);
 
-        // Добавляем BOM для корректного отображения в Excel
-        const bom = Buffer.from('\ufeff', 'utf8');
-        const content = Buffer.concat([bom, Buffer.from(csvContent, 'utf8')]);
-
         // Сохраняем файл
-        fs.writeFileSync(filepath, content);
+        XLSX.writeFile(wb, filepath);
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -262,16 +277,14 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
         });
     } else {
         // CSV по умолчанию - используем csv-stringify для правильного форматирования
-        const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Продавец', 'Регион', 'URL'];
+        const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Регион'];
         const rows = session.listings.map(item => [
             item.number || '',
             item.price || '',
             item.datePosted || '',
             item.dateUpdated || '',
             item.status || '',
-            item.seller || '',
-            item.region || '',
-            item.url || ''
+            item.region || ''
         ]);
 
         // Добавляем header в начало

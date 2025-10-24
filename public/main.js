@@ -223,7 +223,6 @@ function displayResults() {
                 <td>${item.datePosted}</td>
                 <td>${item.dateUpdated}</td>
                 <td><span class="status-badge ${statusClass}">${item.status}</span></td>
-                <td>${item.seller}</td>
                 <td>${item.region}</td>
             </tr>
         `;
@@ -238,7 +237,6 @@ function displayResults() {
                     <th>Дата размещения</th>
                     <th>Дата обновления</th>
                     <th>Статус</th>
-                    <th>Продавец</th>
                     <th>Регион</th>
                 </tr>
             </thead>
