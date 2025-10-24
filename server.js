@@ -270,25 +270,39 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
         const filename = `autonomera777_${new Date().toISOString().split('T')[0]}.xlsx`;
         const filepath = path.join(process.cwd(), filename);
 
-        // Сохраняем файл напрямую через writeFile
+        // Сохраняем XLSX файл на диск и отправляем
         try {
+            // Записываем файл на диск
             XLSX.writeFile(wb, filepath);
 
-            // Отправляем файл
-            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            console.log(`📊 XLSX файл создан: ${filepath}`);
+
+            // Отправляем файл с правильными заголовками
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+
             res.download(filepath, filename, (err) => {
                 if (err) {
-                    console.error('Ошибка при отправке файла:', err);
+                    console.error('❌ Ошибка при отправке файла:', err);
+                } else {
+                    console.log(`✅ Файл отправлен: ${filename}`);
                 }
-                // Удаляем временный файл
-                fs.unlink(filepath, (unlinkErr) => {
-                    if (unlinkErr) console.error('Ошибка удаления файла:', unlinkErr);
-                });
+
+                // Удаляем временный файл после отправки
+                setTimeout(() => {
+                    fs.unlink(filepath, (unlinkErr) => {
+                        if (!unlinkErr) {
+                            console.log(`🗑️ Временный файл удален: ${filepath}`);
+                        }
+                    });
+                }, 1000);
             });
         } catch (err) {
-            console.error('Ошибка создания XLSX файла:', err);
-            res.status(500).json({ error: 'Ошибка при создании Excel файла' });
+            console.error('❌ Ошибка создания XLSX файла:', err);
+            res.status(500).json({ error: 'Ошибка при создании Excel файла: ' + err.message });
         }
     } else {
         // CSV по умолчанию - используем csv-stringify для правильного форматирования

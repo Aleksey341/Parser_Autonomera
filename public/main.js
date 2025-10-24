@@ -315,13 +315,13 @@ async function exportData() {
         return;
     }
 
-    const csvUrl = `${serverUrl}/api/sessions/${currentSessionId}/export?format=csv`;
+    const xlsxUrl = `${serverUrl}/api/sessions/${currentSessionId}/export?format=xlsx`;
     const link = document.createElement('a');
-    link.href = csvUrl;
-    link.download = `autonomera777_${new Date().toISOString().split('T')[0]}.csv`;
+    link.href = xlsxUrl;
+    link.download = `autonomera777_${new Date().toISOString().split('T')[0]}.xlsx`;
     link.click();
 
-    showMessage('success', `✅ CSV файл с ${allData.length} объявлениями загружен`);
+    showMessage('success', `✅ Excel файл с ${allData.length} объявлениями загружен`);
 }
 
 function switchTab(tabName) {
