@@ -291,8 +291,8 @@ function applyFilters() {
 
     filteredData = allData.filter(item => {
         const matchesSearch = !searchQuery ||
-            item.number.toLowerCase().includes(searchQuery) ||
-            item.seller.toLowerCase().includes(searchQuery);
+            (item.number && item.number.toLowerCase().includes(searchQuery)) ||
+            (item.region && item.region.toLowerCase().includes(searchQuery));
 
         const matchesStatus = !statusFilter || item.status === statusFilter;
 
