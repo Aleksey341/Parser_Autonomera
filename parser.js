@@ -156,6 +156,16 @@ class AutonomeraParser {
                 this.page.setDefaultNavigationTimeout(this.timeout);
                 this.page.setDefaultTimeout(this.timeout);
 
+                // Обработчик для ошибок в консоли браузера
+                this.page.on('error', err => {
+                    console.error(`❌ Ошибка страницы: ${err.message}`);
+                });
+
+                // Обработчик для ошибок в фреймах
+                this.page.on('framedetached', () => {
+                    console.log('⚠️  Фрейм был отсоединен');
+                });
+
                 // Загружаем страницу (используем domcontentloaded вместо networkidle2 для более быстрой загрузки)
                 await this.page.goto(this.baseUrl, { waitUntil: 'domcontentloaded', timeout: this.timeout });
 
@@ -337,6 +347,27 @@ class AutonomeraParser {
 
             } catch (error) {
                 console.log(`⚠️ Ошибка при загрузке данных: ${error.message}`);
+
+                // Если ошибка связана с разрывом соединения, пытаемся восстановить
+                if (error.message.includes('Attempted to use detached Frame') ||
+                    error.message.includes('Connection closed') ||
+                    error.message.includes('Protocol error')) {
+                    console.log('🔄 Пытаемся восстановить соединение...');
+                    try {
+                        // Проверяем, жива ли страница
+                        if (page && page.browser && page.browser.isConnected()) {
+                            // Перезагружаем страницу
+                            await page.reload({ waitUntil: 'domcontentloaded', timeout: this.timeout });
+                            console.log('✅ Страница перезагружена');
+                            await this.delay(1000);
+                            // Пытаемся снова
+                            continue;
+                        }
+                    } catch (reloadError) {
+                        console.log(`❌ Не удалось восстановить: ${reloadError.message}`);
+                        break;
+                    }
+                }
                 break;
             }
         }
