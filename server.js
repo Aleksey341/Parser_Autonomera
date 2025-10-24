@@ -15,6 +15,9 @@ process.setMaxListeners(0);
 app.use(cors());
 app.use(express.json());
 
+// Trust proxy - для работы с Amvera и другими обратными прокси
+app.set('trust proxy', true);
+
 // Логирование всех запросов для отладки
 app.use((req, res, next) => {
   console.log(`📨 ${req.method} ${req.path}`);
@@ -494,7 +497,8 @@ app.get('/run', async (req, res) => {
 
     const data = await r.json();
     const id = data.sessionId || data.id;
-    return res.redirect(`/session/${id}`);
+    // Используем относительный редирект - Express с trust proxy сам всё правильно сформирует
+    return res.redirect(303, `/session/${id}`);
   } catch (e) {
     return res.status(500).send(String(e));
   }
