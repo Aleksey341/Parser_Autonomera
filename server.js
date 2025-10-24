@@ -19,7 +19,6 @@ app.use(express.json());
 app.set('trust proxy', 1);
 
 // Раздача статических файлов (CSS, JS и т.д.)
-const __dirname = path.dirname(require.main.filename);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Логирование всех запросов для отладки
