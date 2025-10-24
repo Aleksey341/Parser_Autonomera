@@ -3,7 +3,7 @@ meta:
   version: 20
 
 build:
-  installCmd: npm ci
+  installCmd: npm install --omit=dev
   skip: false
 
 run:
