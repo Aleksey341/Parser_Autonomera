@@ -1,17 +1,13 @@
----
-meta:
-  version: 20
+# .amvera.yml
+services:
+  web:
+    environment: docker
+    tool: docker
 
-build:
-  installCmd: npm ci
-  skip: false
+    build:
+      dockerfile: Dockerfile   # если у вас Dockerfile в корне репо
 
-run:
-  CMD: npm run start
-  scriptName: server.js
-  containerPort: 3000
-  nodeArguments: --experimental-global-webcrypto
-
-env:
-  - NODE_ENV=production
-  - NODE_OPTIONS=--experimental-global-webcrypto
+    run:
+      containerPort: 3000
+      env:
+        PORT: "3000"
