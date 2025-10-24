@@ -1,20 +1,22 @@
----
-meta:
-  version: 20
+# .amvera.yml
+services:
+  web:
+    environment: docker
+    tool: docker
 
-build:
-  installCmd: npm ci
-  skip: false
+    build:
+      dockerfile: Dockerfile
 
-run:
-  CMD: npm run start
-  scriptName: server.js
-  containerPort: 3000
-  nodeArguments: --experimental-global-webcrypto
-  healthCheckPath: /api/health
-  healthCheckInitialDelay: 10
-  healthCheckInterval: 10
+    run:
+      CMD: npm run start
+      scriptName: server.js
+      containerPort: 3000
+      nodeArguments: --experimental-global-webcrypto
+      healthCheckPath: /api/health
+      healthCheckInitialDelay: 10
+      healthCheckInterval: 10
 
-env:
-  - NODE_ENV=production
-  - NODE_OPTIONS=--experimental-global-webcrypto
+    env:
+      NODE_ENV: production
+      NODE_OPTIONS: --experimental-global-webcrypto
+      PORT: "3000"
