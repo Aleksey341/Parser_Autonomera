@@ -20,7 +20,6 @@ console.log('🚗 Server URL:', serverUrl);
 async function startParsing() {
     const minPrice = parseInt(document.getElementById('minPrice').value) || 0;
     const maxPrice = parseInt(document.getElementById('maxPrice').value) || Infinity;
-    const region = document.getElementById('region').value || null;
     const maxPages = 50;
     const delayMs = 1000;
 
@@ -52,7 +51,7 @@ async function startParsing() {
             body: JSON.stringify({
                 minPrice,
                 maxPrice: maxPrice === Infinity ? 999999999 : maxPrice,
-                region,
+                region: null,
                 maxPages,
                 delayMs
             })
