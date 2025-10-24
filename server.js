@@ -6,7 +6,7 @@ const { stringify } = require('csv-stringify/sync');
 const AutonomeraParser = require('./parser');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Увеличиваем размер памяти для Puppeteer
 process.setMaxListeners(0);
