@@ -288,6 +288,12 @@ table th {
     font-weight: 600;
     padding: 12px 15px;
     text-align: left;
+    background: #f5f7fa;
+    color: #333;
+    border: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .sortable-header:hover {
@@ -299,6 +305,12 @@ table th {
     background: #d4dce8;
     color: #667eea;
     opacity: 1;
+}
+
+.sortable-header:focus {
+    outline: none;
+    background: #d4dce8;
+    color: #667eea;
 }
 
 table td {
