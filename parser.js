@@ -669,12 +669,16 @@ class AutonomeraParser {
         const foundAdvertIds = new Set();
         const foundNumbers = new Set();
 
-        rows.each((i, element) => {
+        // Преобразуем jQuery collection в массив для использования в for..of
+        const rowsArray = rows.toArray();
+
+        for (let i = 0; i < rowsArray.length; i++) {
+            const element = rowsArray[i];
             const $row = $(element);
 
             // Извлекаем ID из класса (advert-id-XXXXX)
             const classMatch = $row.attr('class').match(/advert-id-(\d+)/);
-            if (!classMatch) return;
+            if (!classMatch) continue;
 
             const advertId = classMatch[1];
 
@@ -687,13 +691,13 @@ class AutonomeraParser {
                 if (match) {
                     number = match[0];
                 } else {
-                    return;
+                    continue;
                 }
             }
 
             // Проверяем, уже ли мы видели это объявление
             if (foundAdvertIds.has(advertId) || foundNumbers.has(number)) {
-                return; // Уже видели в этом ответе
+                continue; // Уже видели в этом ответе
             }
 
             foundAdvertIds.add(advertId);
@@ -701,7 +705,7 @@ class AutonomeraParser {
 
             // Проверяем, есть ли уже в списке
             if (existingNumbers.has(number) || this.listings.some(l => l.number === number)) {
-                return; // Уже есть в списке
+                continue; // Уже есть в списке
             }
 
             // Ищем цену - может быть в разных форматах
@@ -780,7 +784,7 @@ class AutonomeraParser {
                     console.log(`⏭️ [${i}] Пропущено: ${number} регион ${listing.region} не совпадает с ${this.region}`);
                 }
             }
-        });
+        }
 
         console.log(`📊 API ответ: всего строк ${rows.length}, новых ${count}, всего собрано ${this.listings.length}`);
 
