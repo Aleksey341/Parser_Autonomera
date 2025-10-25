@@ -94,6 +94,10 @@ async function monitorParsing() {
             document.getElementById('sessionStatus').textContent = status.status;
             document.getElementById('loadedCount').textContent = status.listingsCount;
 
+            // Обновляем счетчик найденных объявлений в реальном времени
+            foundCount = status.listingsCount;
+            document.getElementById('foundCount').textContent = foundCount;
+
             if (status.status === 'completed') {
                 clearInterval(statusCheckInterval);
                 stopParsingTimer();
@@ -110,7 +114,7 @@ async function monitorParsing() {
             } else if (status.status === 'paused') {
                 clearInterval(statusCheckInterval);
                 await loadResults();
-                showMessage('success', `✅ Батч ${status.batch.number || 1} готов! Загруженно ${status.listingsCount} объявлений\n👉 Нажмите "Продолжить" для загрузки следующего батча (еще +500)`);
+                showMessage('success', `✅ Батч ${status.batch.number || 1} готов! Загруженно ${status.listingsCount} объявлений\n👉 Нажмите "Продолжить" для загрузки следующего батча (еще +2000)`);
                 document.getElementById('startBtn').disabled = true;
                 document.getElementById('continueBtn').disabled = false;
                 document.getElementById('continueBtn').style.display = 'inline-block';
