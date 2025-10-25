@@ -385,7 +385,7 @@ function displayResults() {
                     ${getHeaderHTML('number', 'Номер автомобиля')}
                     ${getHeaderHTML('price', 'Цена')}
                     ${getHeaderHTML('datePosted', 'Дата размещения')}
-                    ${getHeaderHTML('dateUpdated', 'Дата обновления')}
+                    ${getHeaderHTML('dateUpdated', 'Дата поднятия')}
                     ${getHeaderHTML('status', 'Статус')}
                     ${getHeaderHTML('region', 'Регион')}
                     ${getHeaderHTML('url', 'Ссылка')}
