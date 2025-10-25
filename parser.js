@@ -653,7 +653,7 @@ class AutonomeraParser {
     /**
      * Загружает детали для нескольких объявлений параллельно
      */
-    async getMultipleListingDetails(advertIds, baseUrl, concurrency = 10) {
+    async getMultipleListingDetails(advertIds, baseUrl, concurrency = 1000) {
         const results = new Map();
         const queue = [...advertIds];
         const active = new Set();
@@ -795,10 +795,10 @@ class AutonomeraParser {
             advertIdsToLoad.push(advertId);
         }
 
-        // Теперь загружаем детали всех объявлений параллельно (по 10 одновременно)
+        // Теперь загружаем детали всех объявлений параллельно (по 1000 одновременно)
         if (advertIdsToLoad.length > 0) {
-            console.log(`📥 Загружаю детали для ${advertIdsToLoad.length} объявлений (10 параллельно)...`);
-            const detailsMap = await this.getMultipleListingDetails(advertIdsToLoad, this.baseUrl, 10);
+            console.log(`📥 Загружаю детали для ${advertIdsToLoad.length} объявлений (1000 параллельно)...`);
+            const detailsMap = await this.getMultipleListingDetails(advertIdsToLoad, this.baseUrl, 1000);
 
             // Добавляем объявления в список с загруженными датами
             for (const listingInfo of listings) {
