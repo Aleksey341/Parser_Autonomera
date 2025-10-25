@@ -232,7 +232,7 @@ function displayResults() {
     tableContainer.innerHTML = `
         <table>
             <thead>
-                <tr>
+                <tr class="header-row">
                     <th>Номер автомобиля</th>
                     <th>Цена</th>
                     <th>Дата размещения</th>
@@ -240,6 +240,21 @@ function displayResults() {
                     <th>Статус</th>
                     <th>Регион</th>
                     <th>URL</th>
+                </tr>
+                <tr class="filter-row">
+                    <th><input type="text" class="filter-input" id="filterNumber" placeholder="Поиск номера..." onkeyup="applyTableFilters()"></th>
+                    <th><input type="text" class="filter-input" id="filterPrice" placeholder="Мин-макс цена..." onkeyup="applyTableFilters()"></th>
+                    <th><input type="text" class="filter-input" id="filterDatePosted" placeholder="Дата размещения..." onkeyup="applyTableFilters()"></th>
+                    <th><input type="text" class="filter-input" id="filterDateUpdated" placeholder="Дата обновления..." onkeyup="applyTableFilters()"></th>
+                    <th>
+                        <select class="filter-input" id="filterStatus" onchange="applyTableFilters()">
+                            <option value="">Все статусы</option>
+                            <option value="активно">Активно</option>
+                            <option value="снято">Снято</option>
+                        </select>
+                    </th>
+                    <th><input type="text" class="filter-input" id="filterRegion" placeholder="Регион..." onkeyup="applyTableFilters()"></th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -297,6 +312,40 @@ function applyFilters() {
         const matchesStatus = !statusFilter || item.status === statusFilter;
 
         return matchesSearch && matchesStatus;
+    });
+
+    displayResults();
+}
+
+/**
+ * Применяет фильтры прямо в таблице результатов
+ */
+function applyTableFilters() {
+    const numberFilter = document.getElementById('filterNumber')?.value.toLowerCase() || '';
+    const priceFilter = document.getElementById('filterPrice')?.value.toLowerCase() || '';
+    const datePostedFilter = document.getElementById('filterDatePosted')?.value.toLowerCase() || '';
+    const dateUpdatedFilter = document.getElementById('filterDateUpdated')?.value.toLowerCase() || '';
+    const statusFilter = document.getElementById('filterStatus')?.value || '';
+    const regionFilter = document.getElementById('filterRegion')?.value.toLowerCase() || '';
+
+    // Фильтруем данные
+    filteredData = allData.filter(item => {
+        const matchesNumber = !numberFilter || (item.number && item.number.toLowerCase().includes(numberFilter));
+        const matchesDatePosted = !datePostedFilter || (item.datePosted && item.datePosted.toLowerCase().includes(datePostedFilter));
+        const matchesDateUpdated = !dateUpdatedFilter || (item.dateUpdated && item.dateUpdated.toLowerCase().includes(dateUpdatedFilter));
+        const matchesStatus = !statusFilter || item.status === statusFilter;
+        const matchesRegion = !regionFilter || (item.region && item.region.toLowerCase().includes(regionFilter));
+
+        // Фильтр по цене (поддерживает формат "min-max")
+        let matchesPrice = true;
+        if (priceFilter) {
+            const priceParts = priceFilter.split('-').map(p => p.trim());
+            const minPrice = parseInt(priceParts[0]) || 0;
+            const maxPrice = parseInt(priceParts[1]) || Infinity;
+            matchesPrice = item.price >= minPrice && item.price <= maxPrice;
+        }
+
+        return matchesNumber && matchesPrice && matchesDatePosted && matchesDateUpdated && matchesStatus && matchesRegion;
     });
 
     displayResults();

@@ -9,7 +9,7 @@ class AutonomeraParser {
     constructor(options = {}) {
         this.baseUrl = 'https://autonomera777.net';
         this.timeout = options.timeout || 45000; // 45 секунд для загрузки страницы
-        this.delayMs = options.delayMs || 500; // 500ms задержка между запросами (быстро, но respectful)
+        this.delayMs = options.delayMs || 300; // 300ms задержка между запросами (быстро, но respectful)
         this.maxPages = options.maxPages || 200; // 200 страниц = ~10,000 объявлений
         this.minPrice = options.minPrice || 0;
         this.maxPrice = options.maxPrice || Infinity;
@@ -93,7 +93,7 @@ class AutonomeraParser {
     }
 
     /**
-     * Главная функция парсинга с поддержкой пагинации по 500 объявлений
+     * Главная функция парсинга с поддержкой пагинации по 10,000 объявлений за батч
      */
     async parse(resumeMode = false) {
         const isFirstRun = !this.browser;
@@ -111,7 +111,7 @@ class AutonomeraParser {
                 await this.initBrowser();
             }
 
-            // Парсим главную страницу с загрузкой объявлений батчами по 500
+            // Парсим главную страницу с загрузкой объявлений батчами по 10,000
             const result = await this.parseMainPage();
 
             // Если парсинг был приостановлен, возвращаем информацию БЕЗ закрытия браузера
@@ -183,7 +183,7 @@ class AutonomeraParser {
             console.log('\n📄 Продолжаем парсинг с существующей страницы...');
         }
 
-        // Парсим объявления батчами по 500 с паузой
+        // Парсим объявления батчами по 10,000 с паузой
         const result = await this.parseMainPageWithLoadMore(this.page);
 
         // Закрываем страницу только при полном завершении (не при паузе)
@@ -217,8 +217,8 @@ class AutonomeraParser {
     async parseMainPageWithLoadMore(page, onBatchComplete = null) {
         let startIndex = 0;
         const itemsPerLoad = 20;
-        const itemsPerBatch = 500; // Останавливаемся после 500 объявлений
-        const maxIterations = 500; // Максимум загрузок
+        const itemsPerBatch = 10000; // Останавливаемся после 10,000 объявлений
+        const maxIterations = 2000; // Максимум загрузок (хватит для 40,000 объявлений)
         let iteration = this.lastIteration; // Продолжаем с последней итерации
         let batchCount = this.batchCount; // Продолжаем с последнего батча
         let consecutiveEmptyResponses = 0;
@@ -1034,8 +1034,8 @@ async function main() {
 
     const parser = new AutonomeraParser({
         timeout: isDev ? 30000 : 45000,
-        delayMs: isDev ? 100 : 500, // Уменьшено с 1000 до 500 для скорости
-        maxPages: isDev ? 2 : 200, // Увеличено с 50 до 200 (10,000 объявлений)
+        delayMs: isDev ? 100 : 300, // 300ms для скорости
+        maxPages: isDev ? 2 : 200, // 200 страниц = 10,000 объявлений за батч
         minPrice: 0,
         maxPrice: Infinity
     });
