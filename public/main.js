@@ -4,6 +4,8 @@ let allData = [];
 let filteredData = [];
 let currentSessionId = null;
 let statusCheckInterval = null;
+let parsingStartTime = null;
+let parsingTimerInterval = null;
 
 // Автоматически определяем URL сервера
 let serverUrl;
@@ -41,6 +43,8 @@ async function startParsing() {
     document.getElementById('progressSection').classList.add('active');
 
     showMessage('info', '🚀 Начинаем парсинг...');
+    document.getElementById('parsingTimer').textContent = '00:00';
+    startParsingTimer();
 
     try {
         const response = await fetch(`${serverUrl}/api/parse`, {
@@ -85,6 +89,7 @@ async function monitorParsing() {
 
             if (status.status === 'completed') {
                 clearInterval(statusCheckInterval);
+                stopParsingTimer();
                 await loadResults();
                 showMessage('success', `✅ Парсинг завершен! Загруженно ${status.listingsCount} объявлений`);
                 document.getElementById('startBtn').disabled = false;
@@ -190,8 +195,48 @@ function stopParsing() {
     if (statusCheckInterval) {
         clearInterval(statusCheckInterval);
     }
+    stopParsingTimer();
     document.getElementById('stopBtn').disabled = true;
     showMessage('info', 'Мониторинг остановлен');
+}
+
+/**
+ * Запускает таймер парсинга
+ */
+function startParsingTimer() {
+    parsingStartTime = Date.now();
+    updateParsingTimer();
+
+    if (parsingTimerInterval) {
+        clearInterval(parsingTimerInterval);
+    }
+
+    parsingTimerInterval = setInterval(updateParsingTimer, 1000);
+}
+
+/**
+ * Обновляет отображение таймера парсинга
+ */
+function updateParsingTimer() {
+    if (!parsingStartTime) return;
+
+    const elapsed = Math.floor((Date.now() - parsingStartTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+
+    const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    document.getElementById('parsingTimer').textContent = timeString;
+}
+
+/**
+ * Останавливает таймер парсинга
+ */
+function stopParsingTimer() {
+    if (parsingTimerInterval) {
+        clearInterval(parsingTimerInterval);
+        parsingTimerInterval = null;
+    }
+    parsingStartTime = null;
 }
 
 function showMessage(type, message) {
