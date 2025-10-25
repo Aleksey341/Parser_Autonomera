@@ -9,6 +9,14 @@ let parsingTimerInterval = null;
 let foundCount = 0; // Количество найденных объявлений
 let isStopped = false; // Был ли парсинг остановлен
 
+// Фильтры в шапке таблицы
+let headerFilters = {
+    number: '',
+    price: '',
+    dateUpdated: '',
+    region: ''
+};
+
 // Автоматически определяем URL сервера
 let serverUrl;
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -180,6 +188,14 @@ async function loadResults() {
         filteredData = [...allData];
         foundCount = allData.length;
         document.getElementById('foundCount').textContent = foundCount;
+
+        // Очищаем фильтры при загрузке новых результатов
+        headerFilters = {
+            number: '',
+            price: '',
+            dateUpdated: '',
+            region: ''
+        };
 
         console.log(`✅ Загруженно ${allData.length} объявлений`);
 
@@ -371,29 +387,42 @@ function displayResults() {
     }
 
     // Генерируем заголовки с индикаторами сортировки (как в Excel)
-    const getHeaderHTML = (columnName, displayName) => {
+    const getHeaderHTML = (columnName, displayName, hasFilter = false) => {
         const indicator = sortConfig.column === columnName
             ? (sortConfig.direction === 'asc' ? ' ▲' : ' ▼')
             : '';
-        return `<th class="sortable-header" onclick="sortTable('${columnName}')">${displayName}${indicator}</th>`;
+        const filterHTML = hasFilter
+            ? `<div style="margin-top: 5px;"><input type="text" class="header-filter" data-column="${columnName}" placeholder="фильтр" style="width: 100%; padding: 4px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px;" onclick="event.stopPropagation()" oninput="applyHeaderFilters()"></div>`
+            : '';
+        return `<th class="sortable-header" onclick="sortTable('${columnName}')">${displayName}${indicator}${filterHTML}</th>`;
     };
 
     tableContainer.innerHTML = `
         <table>
             <thead>
                 <tr class="header-row">
-                    ${getHeaderHTML('number', 'Номер автомобиля')}
-                    ${getHeaderHTML('price', 'Цена')}
+                    ${getHeaderHTML('number', 'Номер автомобиля', true)}
+                    ${getHeaderHTML('price', 'Цена', true)}
                     ${getHeaderHTML('datePosted', 'Дата размещения')}
-                    ${getHeaderHTML('dateUpdated', 'Дата обновления')}
+                    ${getHeaderHTML('dateUpdated', 'Дата обновления', true)}
                     ${getHeaderHTML('status', 'Статус')}
-                    ${getHeaderHTML('region', 'Регион')}
+                    ${getHeaderHTML('region', 'Регион', true)}
                     ${getHeaderHTML('url', 'Ссылка')}
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
         </table>
     `;
+
+    // Восстанавливаем значения фильтров
+    setTimeout(() => {
+        document.querySelectorAll('.header-filter').forEach(input => {
+            const column = input.getAttribute('data-column');
+            if (headerFilters[column]) {
+                input.value = headerFilters[column];
+            }
+        });
+    }, 0);
 }
 
 /**
@@ -581,6 +610,58 @@ async function resumeParsing() {
         document.getElementById('resumeBtn').disabled = false;
         document.getElementById('spinnerResume').style.display = 'none';
     }
+}
+
+/**
+ * Применяет фильтры из инпутов заголовков таблицы
+ */
+function applyHeaderFilters() {
+    // Собираем значения фильтров
+    document.querySelectorAll('.header-filter').forEach(input => {
+        const column = input.getAttribute('data-column');
+        headerFilters[column] = input.value.toLowerCase();
+    });
+
+    // Фильтруем данные
+    filteredData = allData.filter(item => {
+        // Фильтр по номеру
+        if (headerFilters.number && !item.number.toLowerCase().includes(headerFilters.number)) {
+            return false;
+        }
+
+        // Фильтр по цене
+        if (headerFilters.price) {
+            const priceFilter = headerFilters.price.toLowerCase();
+            // Поддержка диапазонов (например: "100000-500000")
+            if (priceFilter.includes('-')) {
+                const [minStr, maxStr] = priceFilter.split('-');
+                const min = parseInt(minStr) || 0;
+                const max = parseInt(maxStr) || Infinity;
+                if (item.price < min || item.price > max) {
+                    return false;
+                }
+            } else if (priceFilter) {
+                // Простой поиск в цене
+                if (!item.price.toString().includes(priceFilter)) {
+                    return false;
+                }
+            }
+        }
+
+        // Фильтр по дате обновления
+        if (headerFilters.dateUpdated && !item.dateUpdated.toLowerCase().includes(headerFilters.dateUpdated)) {
+            return false;
+        }
+
+        // Фильтр по региону
+        if (headerFilters.region && !item.region.toLowerCase().includes(headerFilters.region)) {
+            return false;
+        }
+
+        return true;
+    });
+
+    displayResults();
 }
 
 window.addEventListener('load', () => {
