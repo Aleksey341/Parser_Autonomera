@@ -763,42 +763,21 @@ class AutonomeraParser {
         const price = this.extractPrice(priceText);
 
         // Ищем даты в структуре user-data-table
-        // Дата размещения: ищем ячейку с текстом "Дата размещения" и берем следующую ячейку
+        // Структура: <tr class="user-data-table__tr"><th>Дата размещения</th><td>08 декабря 2024</td></tr>
         let datePostedText = '';
-        const userDataRows = $elem.find('[class*="user-data-table"]');
-        userDataRows.each((i, row) => {
-            const rowText = $(row).text();
-            if (rowText.includes('Дата размещения')) {
-                // Ищем следующий элемент с классом "*__td"
-                const nextTd = $(row).next('[class*="user-data-table__td"]');
-                if (nextTd.length) {
-                    datePostedText = nextTd.text().trim();
-                } else {
-                    // Альтернатива: ищем td внутри этой строки
-                    const td = $(row).find('[class*="user-data-table__td"]');
-                    if (td.length) {
-                        datePostedText = td.first().next().text().trim();
-                    }
-                }
-            }
-        });
-
-        // Дата поднятия: ищем ячейку с текстом "Дата поднятия" и берем следующую ячейку
         let dateUpdatedText = '';
+
+        const userDataRows = $elem.find('.user-data-table__tr');
         userDataRows.each((i, row) => {
-            const rowText = $(row).text();
-            if (rowText.includes('Дата поднятия')) {
-                // Ищем следующий элемент с классом "*__td"
-                const nextTd = $(row).next('[class*="user-data-table__td"]');
-                if (nextTd.length) {
-                    dateUpdatedText = nextTd.text().trim();
-                } else {
-                    // Альтернатива: ищем td внутри этой строки
-                    const td = $(row).find('[class*="user-data-table__td"]');
-                    if (td.length) {
-                        dateUpdatedText = td.first().next().text().trim();
-                    }
-                }
+            const $row = $(row);
+            const th = $row.find('.user-data-table__th').text().trim();
+            const td = $row.find('.user-data-table__td').text().trim();
+
+            if (th === 'Дата размещения' && td) {
+                datePostedText = td;
+            }
+            if (th === 'Дата поднятия' && td) {
+                dateUpdatedText = td;
             }
         });
 
