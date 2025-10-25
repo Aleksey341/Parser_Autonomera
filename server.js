@@ -491,6 +491,70 @@ app.post('/api/sessions/:id/continue', async (req, res) => {
 });
 
 /**
+ * POST /api/sessions/:sessionId/resume - возобновить парсинг после остановки
+ */
+app.post('/api/sessions/:sessionId/resume', async (req, res) => {
+    const { sessionId } = req.params;
+    const session = sessions.get(sessionId);
+
+    if (!session) {
+        return res.status(404).json({
+            error: 'Сессия не найдена'
+        });
+    }
+
+    if (session.status !== 'stopped') {
+        return res.status(400).json({
+            error: 'Парсинг не был остановлен',
+            currentStatus: session.status
+        });
+    }
+
+    // Возобновляем парсинг с сохраненного состояния
+    const parser = session.pausedParser;
+    if (!parser) {
+        return res.status(400).json({
+            error: 'Парсер не найден в сессии'
+        });
+    }
+
+    session.status = 'running';
+    session.resumeTime = Date.now();
+
+    res.json({
+        sessionId,
+        status: 'resumed',
+        message: 'Парсинг возобновлен',
+        currentCount: parser.listings ? parser.listings.length : 0
+    });
+
+    // Запускаем продолжение парсинга асинхронно
+    parser.parse()
+        .then((result) => {
+            if (result && result.paused) {
+                // Парсинг снова приостановлен на следующем батче
+                session.status = 'paused';
+                session.listings = parser.listings;
+                session.batchNumber = result.result.batchNumber;
+                console.log(`⏸️ Сессия ${sessionId} приостановлена на батче ${result.result.batchNumber}: ${parser.listings.length} объявлений`);
+            } else {
+                // Парсинг полностью завершен
+                session.status = 'completed';
+                session.listings = parser.listings || result;
+                session.endTime = Date.now();
+                session.progress = 100;
+                console.log(`✅ Сессия ${sessionId} полностью завершена: ${parser.listings.length} объявлений`);
+            }
+        })
+        .catch((error) => {
+            session.status = 'error';
+            session.error = error.message;
+            session.endTime = Date.now();
+            console.error(`❌ Ошибка при возобновлении сессии ${sessionId}:`, error.message);
+        });
+});
+
+/**
  * POST /api/sessions/:sessionId/stop - остановить парсинг и получить текущие результаты
  */
 app.post('/api/sessions/:sessionId/stop', (req, res) => {
@@ -510,17 +574,17 @@ app.post('/api/sessions/:sessionId/stop', (req, res) => {
         });
     }
 
-    // Останавливаем парсинг
+    // Останавливаем парсинг (но НЕ закрываем браузер для возможности возобновления)
     const parser = session.parser;
-    if (parser && parser.browser) {
-        parser.browser.close().catch(err => console.error('Ошибка при закрытии браузера:', err));
-    }
 
-    // Меняем статус на stopped и сохраняем текущие результаты
+    // Сохраняем текущее состояние парсера для возможности возобновления
     session.status = 'stopped';
     session.listings = parser ? parser.listings : [];
     session.endTime = Date.now();
     session.stoppedAt = session.listings ? session.listings.length : 0;
+
+    // Сохраняем парсер в сессию для возможности возобновления (не закрываем браузер!)
+    session.pausedParser = parser;
 
     console.log(`🛑 Сессия ${sessionId} остановлена: ${session.stoppedAt} объявлений собрано`);
 

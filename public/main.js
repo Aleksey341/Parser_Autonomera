@@ -536,7 +536,7 @@ async function resumeParsing() {
         // Запускаем таймер с момента возобновления (не сбрасываем)
         startParsingTimer();
 
-        const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/continue`, {
+        const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/resume`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -545,6 +545,13 @@ async function resumeParsing() {
 
         const result = await response.json();
         console.log('Resume response:', result);
+
+        if (!response.ok) {
+            showMessage('error', `❌ Ошибка возобновления: ${result.error}`);
+            document.getElementById('resumeBtn').disabled = false;
+            document.getElementById('spinnerResume').style.display = 'none';
+            return;
+        }
 
         showMessage('info', `▶️ Продолжаем парсинг с места остановки... Текущих объявлений: ${result.currentCount}`);
 

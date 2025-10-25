@@ -285,11 +285,16 @@ table th {
     user-select: none;
     transition: all 0.2s ease;
     position: relative;
+    font-weight: 600;
 }
 
 .sortable-header:hover {
     background: #e8ecf1;
     color: #667eea;
+}
+
+.sortable-header:active {
+    transform: scale(0.98);
 }
 
 table td {
