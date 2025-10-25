@@ -108,6 +108,17 @@ async function monitorParsing() {
                 document.getElementById('stopBtn').disabled = false;
                 document.getElementById('exportBtn').disabled = false;
                 document.getElementById('spinner').style.display = 'none';
+            } else if (status.status === 'stopped') {
+                clearInterval(statusCheckInterval);
+                stopParsingTimer();
+                await loadResults();
+                showMessage('success', `✅ Парсинг остановлен! Собрано ${status.listingsCount} объявлений`);
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('continueBtn').disabled = true;
+                document.getElementById('continueBtn').style.display = 'none';
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('exportBtn').disabled = false;
+                document.getElementById('spinner').style.display = 'none';
             } else if (status.status === 'error') {
                 clearInterval(statusCheckInterval);
                 showMessage('error', `❌ Ошибка парсинга: ${status.error}`);
@@ -191,13 +202,46 @@ async function continueParsing() {
     }
 }
 
-function stopParsing() {
+async function stopParsing() {
     if (statusCheckInterval) {
         clearInterval(statusCheckInterval);
     }
     stopParsingTimer();
     document.getElementById('stopBtn').disabled = true;
-    showMessage('info', 'Мониторинг остановлен');
+
+    if (!currentSessionId) {
+        showMessage('error', '❌ Сессия не найдена');
+        return;
+    }
+
+    try {
+        // Отправляем запрос на остановку парсинга на сервер
+        const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/stop`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            showMessage('error', `❌ Ошибка остановки: ${result.error}`);
+            return;
+        }
+
+        // Загружаем результаты остановленного парсинга
+        await loadResults();
+        showMessage('success', `✅ Парсинг остановлен! Собрано ${result.listingsCount} объявлений`);
+
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('continueBtn').disabled = true;
+        document.getElementById('continueBtn').style.display = 'none';
+        document.getElementById('exportBtn').disabled = false;
+        document.getElementById('spinner').style.display = 'none';
+    } catch (error) {
+        showMessage('error', `❌ Ошибка: ${error.message}`);
+    }
 }
 
 /**

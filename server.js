@@ -485,6 +485,49 @@ app.post('/api/sessions/:id/continue', async (req, res) => {
         });
 });
 
+/**
+ * POST /api/sessions/:sessionId/stop - остановить парсинг и получить текущие результаты
+ */
+app.post('/api/sessions/:sessionId/stop', (req, res) => {
+    const { sessionId } = req.params;
+    const session = sessions.get(sessionId);
+
+    if (!session) {
+        return res.status(404).json({
+            error: 'Сессия не найдена'
+        });
+    }
+
+    if (session.status !== 'running') {
+        return res.status(400).json({
+            error: 'Парсинг не запущен',
+            currentStatus: session.status
+        });
+    }
+
+    // Останавливаем парсинг
+    const parser = session.parser;
+    if (parser && parser.browser) {
+        parser.browser.close().catch(err => console.error('Ошибка при закрытии браузера:', err));
+    }
+
+    // Меняем статус на stopped и сохраняем текущие результаты
+    session.status = 'stopped';
+    session.listings = parser ? parser.listings : [];
+    session.endTime = Date.now();
+    session.stoppedAt = session.listings ? session.listings.length : 0;
+
+    console.log(`🛑 Сессия ${sessionId} остановлена: ${session.stoppedAt} объявлений собрано`);
+
+    res.json({
+        sessionId,
+        status: 'stopped',
+        message: 'Парсинг остановлен',
+        listingsCount: session.stoppedAt,
+        listings: session.listings
+    });
+});
+
 // === WEB-ИНТЕРФЕЙС ДЛЯ ЗАПУСКА ПАРСЕРА ===
 // ВАЖНО: эти маршруты ДОЛЖНЫ быть перед app.use() обработчиками!
 
