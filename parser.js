@@ -14,6 +14,8 @@ class AutonomeraParser {
         this.minPrice = options.minPrice || 0;
         this.maxPrice = options.maxPrice || Infinity;
         this.region = options.region || null;
+        this.concurrentRequests = options.concurrentRequests || 4; // Параллельные запросы (4 по умолчанию)
+        this.requestDelayMs = options.requestDelayMs || 50; // Задержка между параллельными запросами (50ms)
         this.listings = [];
         this.errors = [];
         this.browser = null;
@@ -215,18 +217,18 @@ class AutonomeraParser {
      * Парсит главную страницу с кликами на "Показать еще"
      */
     async parseMainPageWithLoadMore(page, onBatchComplete = null) {
-        let startIndex = 0;
         const itemsPerLoad = 20;
         const itemsPerBatch = 10000; // Останавливаемся после 10,000 объявлений
         const maxIterations = 2000; // Максимум загрузок (хватит для 40,000 объявлений)
+
         let iteration = this.lastIteration; // Продолжаем с последней итерации
         let batchCount = this.batchCount; // Продолжаем с последнего батча
         let consecutiveEmptyResponses = 0;
 
-        while (iteration < maxIterations) {
-            startIndex = iteration * itemsPerLoad;
+        console.log(`⚡ Использование параллельных запросов: ${this.concurrentRequests} одновременно (задержка: ${this.requestDelayMs}ms)`);
 
-            // Проверяем, достигли ли лимита на батч (после загрузки 500+ объявлений)
+        while (iteration < maxIterations) {
+            // Проверяем, достигли ли лимита на батч (после загрузки 10,000 объявлений)
             if (this.listings.length >= (batchCount + 1) * itemsPerBatch) {
                 batchCount++;
                 this.batchCount = batchCount; // Сохраняем состояние батча
@@ -250,103 +252,75 @@ class AutonomeraParser {
                 return { paused: true, batchNumber: batchCount, count: this.listings.length };
             }
 
-            console.log(`\n👆 Загружаем объявления (запрос ${iteration + 1}, start=${startIndex})...`);
-            iteration++;
+            // Создаем массив параллельных запросов
+            const promises = [];
+            const requestIndices = [];
+
+            for (let i = 0; i < this.concurrentRequests && iteration < maxIterations; i++) {
+                const startIndex = iteration * itemsPerLoad;
+                requestIndices.push(iteration);
+
+                console.log(`⚡ Запрос ${iteration + 1} (start=${startIndex}) запущен параллельно`);
+
+                promises.push(
+                    this.fetchListingsChunk(page, startIndex).catch(err => {
+                        console.log(`⚠️ Ошибка при загрузке запроса ${iteration}: ${err.message}`);
+                        return { html: '', error: err.message };
+                    })
+                );
+
+                iteration++;
+
+                // Небольшая задержка между запусками параллельных запросов
+                await this.delay(this.requestDelayMs);
+            }
 
             try {
-                // Используем скрипт на странице для загрузки через jQuery
-                const newHtml = await page.evaluate(async (start) => {
-                    return new Promise((resolve) => {
-                        const params = {
-                            number: JSON.stringify({
-                                word1: '',
-                                word2: '',
-                                word3: '',
-                                number1: '',
-                                number2: '',
-                                number3: '',
-                                number4: '',
-                                code: '',
-                                city: '',
-                                catid: 'undefined',
-                                type: 'standart'
-                            }),
-                            catid: 'undefined',
-                            type: 'standart',
-                            city: '',
-                            code: '',
-                            photo: '',
-                            sletters: '',
-                            snumbers: '',
-                            firstten: '',
-                            ehundred: '',
-                            numeqreg: '',
-                            mirrored: '',
-                            pricefr: '',
-                            priceto: '',
-                            regcode: 'undefined',
-                            blog: 'numbers',
-                            userid: '',
-                            order: 'a.`created`',
-                            dir: 'DESC',
-                            start: start,
-                            sort: '',
-                            item_id: 101
-                        };
+                // Ждем завершения всех параллельных запросов
+                const results = await Promise.all(promises);
 
-                        if (typeof jQuery !== 'undefined') {
-                            jQuery.ajax({
-                                type: 'GET',
-                                url: '/ajax/get_numbers.php',
-                                data: params,
-                                dataType: 'html',
-                                success: function(response) {
-                                    if (response && response.trim()) {
-                                        // Добавляем новые объявления в DOM
-                                        jQuery('#adverts-list-area').append(response);
-                                        resolve(response);
-                                    } else {
-                                        resolve('');
-                                    }
-                                },
-                                error: function() {
-                                    resolve('');
-                                }
-                            });
-                        } else {
-                            resolve('');
-                        }
-                    });
-                }, startIndex);
+                let totalNewCount = 0;
+                let emptyCount = 0;
 
-                // Если получили новый HTML, парсим его
-                if (newHtml && newHtml.trim()) {
-                    const $ = cheerio.load(newHtml);
-                    const existingNumbers = new Set(this.listings.map(l => l.number));
-                    const newCount = this.parseListingsFromAPIResponse($, existingNumbers);
+                // Обрабатываем все полученные результаты
+                for (let i = 0; i < results.length; i++) {
+                    const result = results[i];
 
-                    if (newCount === 0) {
-                        consecutiveEmptyResponses++;
-                        if (consecutiveEmptyResponses >= 3) {
-                            console.log('✅ 3 подряд пустых ответа - все загружены');
-                            break;
+                    if (result.error) {
+                        emptyCount++;
+                        continue;
+                    }
+
+                    if (result.html && result.html.trim()) {
+                        const $ = cheerio.load(result.html);
+                        const existingNumbers = new Set(this.listings.map(l => l.number));
+                        const newCount = this.parseListingsFromAPIResponse($, existingNumbers);
+                        totalNewCount += newCount;
+
+                        if (newCount === 0) {
+                            emptyCount++;
                         }
                     } else {
-                        consecutiveEmptyResponses = 0;
-                    }
-                } else {
-                    consecutiveEmptyResponses++;
-                    if (consecutiveEmptyResponses >= 3) {
-                        console.log('✅ Новых объявлений нет в ответе - все загружены');
-                        break;
+                        emptyCount++;
                     }
                 }
 
-                // Минимальная задержка для интеграции с DOM (асинхронная операция)
-                await this.delay(10);
+                // Обновляем счетчик пустых ответов
+                if (emptyCount === promises.length) {
+                    consecutiveEmptyResponses++;
+                    console.log(`⚠️ Пустые ответы: ${consecutiveEmptyResponses}/3`);
+                    if (consecutiveEmptyResponses >= 3) {
+                        console.log('✅ 3 серии пустых ответов - все загружены');
+                        break;
+                    }
+                } else {
+                    consecutiveEmptyResponses = 0;
+                }
+
+                console.log(`✅ Батч из ${promises.length} запросов загружено ${totalNewCount} новых объявлений`);
 
             } catch (error) {
-                console.log(`⚠️ Ошибка при загрузке данных: ${error.message}`);
+                console.log(`⚠️ Ошибка при загрузке батча: ${error.message}`);
 
                 // Если ошибка связана с разрывом соединения, пытаемся восстановить
                 if (error.message.includes('Attempted to use detached Frame') ||
@@ -375,6 +349,81 @@ class AutonomeraParser {
         console.log(`\n📊 Всего итераций загрузки: ${iteration}`);
         console.log(`📊 Всего объявлений загружено: ${this.listings.length}`);
         return { paused: false, completed: true, count: this.listings.length };
+    }
+
+    /**
+     * Загружает один блок объявлений с параллельными запросами
+     */
+    async fetchListingsChunk(page, startIndex) {
+        try {
+            const newHtml = await page.evaluate(async (start) => {
+                return new Promise((resolve) => {
+                    const params = {
+                        number: JSON.stringify({
+                            word1: '',
+                            word2: '',
+                            word3: '',
+                            number1: '',
+                            number2: '',
+                            number3: '',
+                            number4: '',
+                            code: '',
+                            city: '',
+                            catid: 'undefined',
+                            type: 'standart'
+                        }),
+                        catid: 'undefined',
+                        type: 'standart',
+                        city: '',
+                        code: '',
+                        photo: '',
+                        sletters: '',
+                        snumbers: '',
+                        firstten: '',
+                        ehundred: '',
+                        numeqreg: '',
+                        mirrored: '',
+                        pricefr: '',
+                        priceto: '',
+                        regcode: 'undefined',
+                        blog: 'numbers',
+                        userid: '',
+                        order: 'a.`created`',
+                        dir: 'DESC',
+                        start: start,
+                        sort: '',
+                        item_id: 101
+                    };
+
+                    if (typeof jQuery !== 'undefined') {
+                        jQuery.ajax({
+                            type: 'GET',
+                            url: '/ajax/get_numbers.php',
+                            data: params,
+                            dataType: 'html',
+                            success: function(response) {
+                                if (response && response.trim()) {
+                                    // Добавляем новые объявления в DOM
+                                    jQuery('#adverts-list-area').append(response);
+                                    resolve(response);
+                                } else {
+                                    resolve('');
+                                }
+                            },
+                            error: function() {
+                                resolve('');
+                            }
+                        });
+                    } else {
+                        resolve('');
+                    }
+                });
+            }, startIndex);
+
+            return { html: newHtml, error: null };
+        } catch (error) {
+            return { html: '', error: error };
+        }
     }
 
     /**

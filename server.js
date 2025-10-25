@@ -61,20 +61,25 @@ app.post('/api/parse', async (req, res) => {
         maxPrice = Infinity,
         region = null,
         maxPages = 200, // 200 страниц = 10,000 объявлений за батч
-        delayMs = 100 // 100ms задержка для максимальной скорости
+        delayMs = 100, // 100ms задержка для максимальной скорости
+        concurrentRequests = 4, // 4 параллельных запроса
+        requestDelayMs = 50 // 50ms задержка между параллельными запросами
     } = req.body;
 
     const sessionId = generateSessionId();
 
     console.log(`\n🚀 Новая сессия парсинга: ${sessionId}`);
     console.log(`📊 Параметры: цена ${minPrice}-${maxPrice}, регион: ${region}`);
+    console.log(`⚡ Параллельные запросы: ${concurrentRequests} одновременно (задержка: ${requestDelayMs}ms)`);
 
     const parser = new AutonomeraParser({
         minPrice,
         maxPrice,
         region,
         maxPages,
-        delayMs
+        delayMs,
+        concurrentRequests,
+        requestDelayMs
     });
 
     // Сохраняем парсер в сессию
