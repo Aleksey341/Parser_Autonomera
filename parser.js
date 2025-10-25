@@ -683,26 +683,41 @@ class AutonomeraParser {
                 console.log(`⚠️ Объявление ${i + 1} (${number}): не найдена цена в тексте: "${priceText.substring(0, 200)}"...`);
             }
 
-            // Ищем даты - дата размещения и дата поднятия
-            // Ищем все даты в формате ДД.МММ.ГГГГ
-            const rowText = $row.text();
-            const dateMatches = Array.from(rowText.matchAll(/(\d{2})\.(\d{2})\.(\d{4})/g));
-
+            // Ищем даты через user-data-table если есть
+            // Пытаемся получить даты из карточки
             let datePosted = this.formatDateToDDMMYYYY(new Date());
             let dateUpdated = datePosted;
 
-            if (dateMatches.length > 0) {
-                // Первая дата - дата размещения
-                const firstMatch = dateMatches[0];
-                datePosted = `${firstMatch[1]}.${firstMatch[2]}.${firstMatch[3]}`;
+            // Сначала пробуем найти даты через user-data-table
+            const userDataRows = $row.find('.user-data-table__tr');
+            if (userDataRows.length > 0) {
+                userDataRows.each((idx, row) => {
+                    const $r = $(row);
+                    const th = $r.find('.user-data-table__th').text().trim();
+                    const td = $r.find('.user-data-table__td').text().trim();
 
-                // Если есть вторая дата - это дата последнего поднятия
-                if (dateMatches.length > 1) {
-                    const lastMatch = dateMatches[dateMatches.length - 1];
-                    dateUpdated = `${lastMatch[1]}.${lastMatch[2]}.${lastMatch[3]}`;
-                } else {
-                    // Если только одна дата, используем её для обеих
-                    dateUpdated = datePosted;
+                    if (th === 'Дата размещения' && td) {
+                        datePosted = this.parseDate(td);
+                    }
+                    if (th === 'Дата поднятия' && td) {
+                        dateUpdated = this.parseDate(td);
+                    }
+                });
+            } else {
+                // Fallback: ищем все даты в формате ДД.МММ.ГГГГ в тексте строки
+                const rowText = $row.text();
+                const dateMatches = Array.from(rowText.matchAll(/(\d{2})\.(\d{2})\.(\d{4})/g));
+
+                if (dateMatches.length > 0) {
+                    // Первая дата - дата размещения
+                    const firstMatch = dateMatches[0];
+                    datePosted = `${firstMatch[1]}.${firstMatch[2]}.${firstMatch[3]}`;
+
+                    // Если есть вторая дата - это дата последнего поднятия
+                    if (dateMatches.length > 1) {
+                        const lastMatch = dateMatches[dateMatches.length - 1];
+                        dateUpdated = `${lastMatch[1]}.${lastMatch[2]}.${lastMatch[3]}`;
+                    }
                 }
             }
 
