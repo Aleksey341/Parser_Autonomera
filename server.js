@@ -61,7 +61,7 @@ app.post('/api/parse', async (req, res) => {
         maxPrice = Infinity,
         region = null,
         maxPages = 200, // 200 страниц = 10,000 объявлений за батч
-        delayMs = 300 // 300ms задержка для скорости
+        delayMs = 100 // 100ms задержка для максимальной скорости
     } = req.body;
 
     const sessionId = generateSessionId();

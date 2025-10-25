@@ -8,8 +8,8 @@ const { stringify } = require('csv-stringify/sync');
 class AutonomeraParser {
     constructor(options = {}) {
         this.baseUrl = 'https://autonomera777.net';
-        this.timeout = options.timeout || 45000; // 45 секунд для загрузки страницы
-        this.delayMs = options.delayMs || 300; // 300ms задержка между запросами (быстро, но respectful)
+        this.timeout = options.timeout || 40000; // 40 секунд для загрузки страницы
+        this.delayMs = options.delayMs || 100; // 100ms задержка между запросами (оптимизировано для скорости)
         this.maxPages = options.maxPages || 200; // 200 страниц = ~10,000 объявлений
         this.minPrice = options.minPrice || 0;
         this.maxPrice = options.maxPrice || Infinity;
@@ -171,8 +171,8 @@ class AutonomeraParser {
 
                 console.log('✅ Страница загружена');
 
-                // Ждем, пока объявления загрузятся (сокращена задержка для скорости)
-                await this.delay(1000);
+                // Минимальная задержка для загрузки jQuery и объявлений
+                await this.delay(300);
             } catch (error) {
                 const msg = `Ошибка при загрузке главной страницы: ${error.message}`;
                 console.error('❌', msg);
@@ -342,8 +342,8 @@ class AutonomeraParser {
                     }
                 }
 
-                // Ждем загрузки новых данных (минимальная задержка для максимальной скорости)
-                await this.delay(50);
+                // Минимальная задержка для интеграции с DOM (асинхронная операция)
+                await this.delay(10);
 
             } catch (error) {
                 console.log(`⚠️ Ошибка при загрузке данных: ${error.message}`);
@@ -359,7 +359,7 @@ class AutonomeraParser {
                             // Перезагружаем страницу
                             await page.reload({ waitUntil: 'domcontentloaded', timeout: this.timeout });
                             console.log('✅ Страница перезагружена');
-                            await this.delay(1000);
+                            await this.delay(300); // Короткая задержка для инициализации
                             // Пытаемся снова
                             continue;
                         }
@@ -1033,8 +1033,8 @@ async function main() {
     const isDev = args.includes('--dev');
 
     const parser = new AutonomeraParser({
-        timeout: isDev ? 30000 : 45000,
-        delayMs: isDev ? 100 : 300, // 300ms для скорости
+        timeout: isDev ? 30000 : 40000,
+        delayMs: isDev ? 100 : 100, // 100ms для максимальной скорости
         maxPages: isDev ? 2 : 200, // 200 страниц = 10,000 объявлений за батч
         minPrice: 0,
         maxPrice: Infinity
