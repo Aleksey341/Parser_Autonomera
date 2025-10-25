@@ -296,7 +296,7 @@ class AutonomeraParser {
                     if (result.html && result.html.trim()) {
                         const $ = cheerio.load(result.html);
                         const existingNumbers = new Set(this.listings.map(l => l.number));
-                        const newCount = this.parseListingsFromAPIResponse($, existingNumbers);
+                        const newCount = await this.parseListingsFromAPIResponse($, existingNumbers);
                         totalNewCount += newCount;
 
                         if (newCount === 0) {
@@ -507,7 +507,7 @@ class AutonomeraParser {
         const apiRows = $('.table__tr.table__tr--td[class*="advert-id"]');
         if (apiRows.length > 0) {
             // Это API ответ, парсим его по-другому
-            return this.parseListingsFromAPIResponse($, existingNumbers);
+            return await this.parseListingsFromAPIResponse($, existingNumbers);
         }
 
         // Получаем весь текст страницы
@@ -602,9 +602,61 @@ class AutonomeraParser {
     }
 
     /**
+     * Загружает детали объявления и извлекает даты
+     */
+    async getListingDetails(advertId, baseUrl) {
+        try {
+            // Добавляем небольшую задержку чтобы не перегружать сервер
+            await this.delay(this.delayMs);
+
+            const url = `${baseUrl}/standart/${advertId}`;
+            const https = require('https');
+
+            return new Promise((resolve) => {
+                https.get(url, { timeout: 5000 }, (res) => {
+                    let data = '';
+                    res.on('data', (chunk) => data += chunk);
+                    res.on('end', () => {
+                        try {
+                            const cheerio = require('cheerio');
+                            const $ = cheerio.load(data);
+
+                            let datePosted = this.formatDateToDDMMYYYY(new Date());
+                            let dateUpdated = datePosted;
+
+                            // Ищем даты в user-data-table
+                            const rows = $('.user-data-table__tr');
+                            rows.each((i, row) => {
+                                const $row = $(row);
+                                const th = $row.find('.user-data-table__th').text().trim();
+                                const td = $row.find('.user-data-table__td').text().trim();
+
+                                if (th === 'Дата размещения' && td) {
+                                    datePosted = this.parseDate(td);
+                                }
+                                if (th === 'Дата поднятия' && td) {
+                                    dateUpdated = this.parseDate(td);
+                                }
+                            });
+
+                            resolve({ datePosted, dateUpdated });
+                        } catch (e) {
+                            resolve({ datePosted: '', dateUpdated: '' });
+                        }
+                    });
+                }).on('error', () => {
+                    resolve({ datePosted: '', dateUpdated: '' });
+                });
+            });
+        } catch (error) {
+            return { datePosted: '', dateUpdated: '' };
+        }
+    }
+
+    /**
      * Парсит объявления из API ответа (формат таблицы)
      */
-    parseListingsFromAPIResponse($, existingNumbers) {
+    async parseListingsFromAPIResponse($, existingNumbers) {
         let count = 0;
 
         console.log('🔍 Парсим API ответ (формат таблицы)...');
@@ -683,42 +735,15 @@ class AutonomeraParser {
                 console.log(`⚠️ Объявление ${i + 1} (${number}): не найдена цена в тексте: "${priceText.substring(0, 200)}"...`);
             }
 
-            // Ищем даты через user-data-table если есть
-            // Пытаемся получить даты из карточки
-            let datePosted = this.formatDateToDDMMYYYY(new Date());
-            let dateUpdated = datePosted;
+            // Загружаем детали объявления для получения правильных дат
+            const details = await this.getListingDetails(advertId, this.baseUrl);
+            let datePosted = details.datePosted || this.formatDateToDDMMYYYY(new Date());
+            let dateUpdated = details.dateUpdated || datePosted;
 
-            // Сначала пробуем найти даты через user-data-table
-            const userDataRows = $row.find('.user-data-table__tr');
-            if (userDataRows.length > 0) {
-                userDataRows.each((idx, row) => {
-                    const $r = $(row);
-                    const th = $r.find('.user-data-table__th').text().trim();
-                    const td = $r.find('.user-data-table__td').text().trim();
-
-                    if (th === 'Дата размещения' && td) {
-                        datePosted = this.parseDate(td);
-                    }
-                    if (th === 'Дата поднятия' && td) {
-                        dateUpdated = this.parseDate(td);
-                    }
-                });
-            } else {
-                // Fallback: ищем все даты в формате ДД.МММ.ГГГГ в тексте строки
-                const rowText = $row.text();
-                const dateMatches = Array.from(rowText.matchAll(/(\d{2})\.(\d{2})\.(\d{4})/g));
-
-                if (dateMatches.length > 0) {
-                    // Первая дата - дата размещения
-                    const firstMatch = dateMatches[0];
-                    datePosted = `${firstMatch[1]}.${firstMatch[2]}.${firstMatch[3]}`;
-
-                    // Если есть вторая дата - это дата последнего поднятия
-                    if (dateMatches.length > 1) {
-                        const lastMatch = dateMatches[dateMatches.length - 1];
-                        dateUpdated = `${lastMatch[1]}.${lastMatch[2]}.${lastMatch[3]}`;
-                    }
-                }
+            // Если даты не найдены, используем текущую дату
+            if (!details.datePosted) {
+                datePosted = this.formatDateToDDMMYYYY(new Date());
+                dateUpdated = datePosted;
             }
 
             // URL из href
