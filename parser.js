@@ -683,11 +683,27 @@ class AutonomeraParser {
                 console.log(`⚠️ Объявление ${i + 1} (${number}): не найдена цена в тексте: "${priceText.substring(0, 200)}"...`);
             }
 
-            // Ищем дату
-            const dateMatch = $row.text().match(/(\d{2})\.(\d{2})\.(\d{4})/);
+            // Ищем даты - дата размещения и дата поднятия
+            // Ищем все даты в формате ДД.МММ.ГГГГ
+            const rowText = $row.text();
+            const dateMatches = Array.from(rowText.matchAll(/(\d{2})\.(\d{2})\.(\d{4})/g));
+
             let datePosted = this.formatDateToDDMMYYYY(new Date());
-            if (dateMatch) {
-                datePosted = `${dateMatch[1]}.${dateMatch[2]}.${dateMatch[3]}`;
+            let dateUpdated = datePosted;
+
+            if (dateMatches.length > 0) {
+                // Первая дата - дата размещения
+                const firstMatch = dateMatches[0];
+                datePosted = `${firstMatch[1]}.${firstMatch[2]}.${firstMatch[3]}`;
+
+                // Если есть вторая дата - это дата последнего поднятия
+                if (dateMatches.length > 1) {
+                    const lastMatch = dateMatches[dateMatches.length - 1];
+                    dateUpdated = `${lastMatch[1]}.${lastMatch[2]}.${lastMatch[3]}`;
+                } else {
+                    // Если только одна дата, используем её для обеих
+                    dateUpdated = datePosted;
+                }
             }
 
             // URL из href
@@ -702,7 +718,7 @@ class AutonomeraParser {
                 number: number,
                 price: price,
                 datePosted: datePosted,
-                dateUpdated: datePosted,
+                dateUpdated: dateUpdated,
                 status: 'активно',
                 seller: 'неизвестно',
                 url: url,
@@ -746,12 +762,30 @@ class AutonomeraParser {
         const priceText = $elem.find('[class*="price"]').text() || text;
         const price = this.extractPrice(priceText);
 
+        // Ищем даты в разных возможных местах карточки
+        // Дата размещения может быть в классах с "date", "posted", "published"
+        let datePostedText = $elem.find('[class*="date"]').text() ||
+                            $elem.find('[class*="posted"]').text() ||
+                            $elem.find('[class*="published"]').text() || '';
+
+        // Дата поднятия/обновления может быть в классах с "update", "lifted", "raised", "bump"
+        let dateUpdatedText = $elem.find('[class*="update"]').text() ||
+                             $elem.find('[class*="lifted"]').text() ||
+                             $elem.find('[class*="raised"]').text() ||
+                             $elem.find('[class*="bump"]').text() || '';
+
+        // Если даты не найдены по классам, ищем в тексте даты в формате ДД.МММ.ГГГГ
+        if (!datePostedText) {
+            const dateMatch = text.match(/\d{1,2}\.\d{1,2}\.\d{4}/);
+            datePostedText = dateMatch ? dateMatch[0] : '';
+        }
+
         const listing = {
             id: `${number}-${Date.now()}`.replace(/\s/g, ''),
             number: number,
             price: price,
-            datePosted: this.parseDate($elem.find('[class*="date"]').text() || ''),
-            dateUpdated: this.parseDate($elem.find('[class*="update"]').text() || ''),
+            datePosted: this.parseDate(datePostedText),
+            dateUpdated: this.parseDate(dateUpdatedText),
             status: 'активно',
             seller: $elem.find('[class*="seller"]').text().trim() || 'неизвестно',
             url: $elem.find('a').first().attr('href') || '',
