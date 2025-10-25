@@ -7,6 +7,7 @@ let statusCheckInterval = null;
 let parsingStartTime = null;
 let parsingTimerInterval = null;
 let foundCount = 0; // Количество найденных объявлений
+let isStopped = false; // Был ли парсинг остановлен
 
 // Автоматически определяем URL сервера
 let serverUrl;
@@ -40,6 +41,8 @@ async function startParsing() {
     document.getElementById('startBtn').disabled = true;
     document.getElementById('stopBtn').disabled = false;
     document.getElementById('exportBtn').disabled = true;
+    document.getElementById('resumeBtn').disabled = true;
+    document.getElementById('resumeBtn').style.display = 'none';
     document.getElementById('spinner').style.display = 'inline-block';
     document.getElementById('progressSection').classList.add('active');
 
@@ -47,6 +50,7 @@ async function startParsing() {
     document.getElementById('parsingTimer').textContent = '00:00';
     foundCount = 0;
     document.getElementById('foundCount').textContent = '0';
+    isStopped = false;
     startParsingTimer();
 
     try {
@@ -98,6 +102,8 @@ async function monitorParsing() {
                 document.getElementById('startBtn').disabled = false;
                 document.getElementById('continueBtn').disabled = true;
                 document.getElementById('continueBtn').style.display = 'none';
+                document.getElementById('resumeBtn').disabled = true;
+                document.getElementById('resumeBtn').style.display = 'none';
                 document.getElementById('stopBtn').disabled = true;
                 document.getElementById('exportBtn').disabled = false;
                 document.getElementById('spinner').style.display = 'none';
@@ -108,6 +114,8 @@ async function monitorParsing() {
                 document.getElementById('startBtn').disabled = true;
                 document.getElementById('continueBtn').disabled = false;
                 document.getElementById('continueBtn').style.display = 'inline-block';
+                document.getElementById('resumeBtn').disabled = true;
+                document.getElementById('resumeBtn').style.display = 'none';
                 document.getElementById('stopBtn').disabled = false;
                 document.getElementById('exportBtn').disabled = false;
                 document.getElementById('spinner').style.display = 'none';
@@ -239,9 +247,12 @@ async function stopParsing() {
         await loadResults();
         showMessage('success', `✅ Парсинг остановлен! Собрано ${result.listingsCount} объявлений`);
 
+        isStopped = true;
         document.getElementById('startBtn').disabled = false;
         document.getElementById('continueBtn').disabled = true;
         document.getElementById('continueBtn').style.display = 'none';
+        document.getElementById('resumeBtn').disabled = false;
+        document.getElementById('resumeBtn').style.display = 'inline-block';
         document.getElementById('exportBtn').disabled = false;
         document.getElementById('spinner').style.display = 'none';
     } catch (error) {
@@ -364,7 +375,7 @@ function displayResults() {
                     ${getHeaderHTML('dateUpdated', 'Дата обновления')}
                     ${getHeaderHTML('status', 'Статус')}
                     ${getHeaderHTML('region', 'Регион')}
-                    <th>Ссылка</th>
+                    ${getHeaderHTML('url', 'Ссылка')}
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -505,6 +516,50 @@ function updateLastUpdate() {
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
     document.getElementById('lastUpdate').textContent = `${hours}:${minutes}`;
+}
+
+/**
+ * Продолжает парсинг с места остановки
+ */
+async function resumeParsing() {
+    if (!currentSessionId) {
+        showMessage('error', '❌ Сессия не найдена');
+        return;
+    }
+
+    document.getElementById('resumeBtn').disabled = true;
+    document.getElementById('spinnerResume').style.display = 'inline-block';
+    document.getElementById('stopBtn').disabled = false;
+    document.getElementById('startBtn').disabled = true;
+
+    try {
+        // Запускаем таймер с момента возобновления (не сбрасываем)
+        startParsingTimer();
+
+        const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/continue`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+        console.log('Resume response:', result);
+
+        showMessage('info', `▶️ Продолжаем парсинг с места остановки... Текущих объявлений: ${result.currentCount}`);
+
+        document.getElementById('spinnerResume').style.display = 'none';
+        document.getElementById('spinner').style.display = 'inline-block';
+        document.getElementById('resumeBtn').style.display = 'none';
+        isStopped = false;
+
+        monitorParsing();
+
+    } catch (error) {
+        showMessage('error', `❌ Ошибка при продолжении: ${error.message}`);
+        document.getElementById('resumeBtn').disabled = false;
+        document.getElementById('spinnerResume').style.display = 'none';
+    }
 }
 
 window.addEventListener('load', () => {
