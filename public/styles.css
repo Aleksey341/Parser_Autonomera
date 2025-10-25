@@ -460,6 +460,113 @@ table tbody tr:hover {
     display: block;
 }
 
+/* Instructions tab styles */
+.instructions-content {
+    padding: 20px;
+    line-height: 1.8;
+    color: #333;
+}
+
+.instructions-content h3 {
+    color: #667eea;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    font-size: 18px;
+    border-bottom: 2px solid #667eea;
+    padding-bottom: 10px;
+}
+
+.instructions-content h3:first-child {
+    margin-top: 0;
+}
+
+.instructions-list {
+    margin: 15px 0;
+    padding-left: 25px;
+}
+
+.instructions-list li {
+    margin-bottom: 15px;
+    line-height: 1.6;
+}
+
+.instructions-list li strong {
+    color: #667eea;
+}
+
+.feature-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin: 15px 0;
+}
+
+.feature-item {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+}
+
+.feature-item strong {
+    color: #667eea;
+    font-size: 16px;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.feature-item p {
+    color: #666;
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.6;
+}
+
+.tips-list {
+    background: #f0f2f5;
+    padding: 20px 20px 20px 40px;
+    border-radius: 8px;
+    margin: 15px 0;
+    list-style-type: disc;
+}
+
+.tips-list li {
+    margin-bottom: 12px;
+    color: #333;
+    line-height: 1.6;
+}
+
+.tips-list strong {
+    color: #667eea;
+}
+
+.params-table {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 15px 0;
+}
+
+.param-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.param-row:last-child {
+    border-bottom: none;
+}
+
+.param-label {
+    font-weight: 600;
+    color: #667eea;
+}
+
+.param-value {
+    color: #333;
+}
+
 @media (max-width: 768px) {
     .control-group {
         grid-template-columns: 1fr;
