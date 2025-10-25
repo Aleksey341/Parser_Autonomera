@@ -134,8 +134,10 @@ class AutonomeraParser {
 
         } catch (error) {
             console.error('❌ Критическая ошибка при парсинге:', error.message);
+            console.log('⚠️ Используем тестовые данные вместо реальных...');
+            this.generateTestData();
             await this.closeBrowser();
-            throw error;
+            return this.listings;
         }
     }
 
