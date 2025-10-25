@@ -147,7 +147,9 @@ app.get('/api/sessions/:sessionId/status', (req, res) => {
         ? Math.round((session.endTime - session.startTime) / 1000)
         : Math.round((Date.now() - session.startTime) / 1000);
 
-    const listingsCount = session.listings ? session.listings.length : 0;
+    // Получаем список объявлений из сессии или напрямую из парсера во время работы
+    const listings = session.listings || (session.parser && session.parser.listings) || [];
+    const listingsCount = listings.length;
     const response = {
         sessionId,
         status: session.status,
