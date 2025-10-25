@@ -577,7 +577,7 @@ class AutonomeraParser {
                     status: 'активно',
                     seller: 'неизвестно',
                     url: `${this.baseUrl}/standart/${uniqueId}`,
-                    region: number.slice(-2),
+                    region: this.extractRegion(number),
                     parsedAt: new Date().toISOString()
                 };
 
@@ -704,7 +704,7 @@ class AutonomeraParser {
                 status: 'активно',
                 seller: 'неизвестно',
                 url: url,
-                region: number.slice(-2),
+                region: this.extractRegion(number),
                 parsedAt: new Date().toISOString()
             };
 
@@ -753,7 +753,7 @@ class AutonomeraParser {
             status: 'активно',
             seller: $elem.find('[class*="seller"]').text().trim() || 'неизвестно',
             url: $elem.find('a').first().attr('href') || '',
-            region: number.slice(-2),
+            region: this.extractRegion(number),
             parsedAt: new Date().toISOString()
         };
 
@@ -779,6 +779,19 @@ class AutonomeraParser {
         }
 
         return 0;
+    }
+
+    /**
+     * Извлекает регион из номера автомобиля
+     * Формат номера: А123ВХ77 или А12ВХ199
+     * Регион находится в конце и может быть 2-3 цифры
+     */
+    extractRegion(number) {
+        if (!number) return '';
+
+        // Ищем последовательность из 2-3 цифр в конце
+        const match = number.match(/\d{2,3}$/);
+        return match ? match[0] : '';
     }
 
     /**
