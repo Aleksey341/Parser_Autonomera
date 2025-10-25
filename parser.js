@@ -220,7 +220,7 @@ class AutonomeraParser {
      */
     async parseMainPageWithLoadMore(page, onBatchComplete = null) {
         const itemsPerLoad = 20;
-        const itemsPerBatch = 5000; // Останавливаемся после 5,000 объявлений за батч
+        const itemsPerBatch = 3000; // Останавливаемся после 3,000 объявлений за батч
         const maxIterations = 2000; // Максимум загрузок (хватит для 4,000,000 объявлений)
 
         let iteration = this.lastIteration; // Продолжаем с последней итерации
