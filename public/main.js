@@ -117,6 +117,7 @@ async function monitorParsing() {
                 document.getElementById('spinner').style.display = 'none';
             } else if (status.status === 'paused') {
                 clearInterval(statusCheckInterval);
+                stopParsingTimer();
                 await loadResults();
                 showMessage('success', `✅ Батч ${status.batch.number || 1} готов! Загруженно ${status.listingsCount} объявлений\n👉 Нажмите "Продолжить" для загрузки следующего батча (еще +2000)`);
                 document.getElementById('startBtn').disabled = true;
@@ -140,6 +141,7 @@ async function monitorParsing() {
                 document.getElementById('spinner').style.display = 'none';
             } else if (status.status === 'error') {
                 clearInterval(statusCheckInterval);
+                stopParsingTimer();
                 showMessage('error', `❌ Ошибка парсинга: ${status.error}`);
                 document.getElementById('startBtn').disabled = false;
                 document.getElementById('continueBtn').disabled = true;
@@ -213,6 +215,9 @@ async function continueParsing() {
         document.getElementById('spinner').style.display = 'inline-block';
         document.getElementById('startBtn').disabled = true;
         document.getElementById('continueBtn').style.display = 'none';
+
+        // Перезагружаем таймер при продолжении парсинга
+        startParsingTimer();
 
         monitorParsing();
 
@@ -541,7 +546,8 @@ async function resumeParsing() {
     document.getElementById('startBtn').disabled = true;
 
     try {
-        // Запускаем таймер с момента возобновления (не сбрасываем)
+        // Сбрасываем и запускаем таймер заново при возобновлении парсинга
+        parsingStartTime = null;
         startParsingTimer();
 
         const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/resume`, {
