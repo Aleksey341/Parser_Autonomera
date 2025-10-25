@@ -14,7 +14,7 @@ class AutonomeraParser {
         this.minPrice = options.minPrice || 0;
         this.maxPrice = options.maxPrice || Infinity;
         this.region = options.region || null;
-        this.concurrentRequests = options.concurrentRequests || 100; // Параллельные запросы (100 по умолчанию)
+        this.concurrentRequests = options.concurrentRequests || 500; // Параллельные запросы (500 по умолчанию)
         this.requestDelayMs = options.requestDelayMs || 50; // Задержка между параллельными запросами (50ms)
         this.listings = [];
         this.errors = [];

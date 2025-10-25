@@ -62,7 +62,7 @@ app.post('/api/parse', async (req, res) => {
         region = null,
         maxPages = 200, // 200 страниц = 10,000 объявлений за батч
         delayMs = 100, // 100ms задержка для максимальной скорости
-        concurrentRequests = 100, // 100 параллельных запросов
+        concurrentRequests = 500, // 500 параллельных запросов
         requestDelayMs = 50 // 50ms задержка между параллельными запросами
     } = req.body;
 
