@@ -59,6 +59,7 @@ async function startParsing() {
     foundCount = 0;
     document.getElementById('foundCount').textContent = '0';
     isStopped = false;
+    console.log('📊 Счётчик найденных объявлений инициализирован: 0');
     startParsingTimer();
 
     try {
@@ -105,6 +106,9 @@ async function monitorParsing() {
             // Обновляем счетчик найденных объявлений в реальном времени
             foundCount = status.listingsCount;
             document.getElementById('foundCount').textContent = foundCount;
+
+            // Debug logging
+            console.log(`📊 Статус обновлен: ${status.status}, найдено объявлений: ${foundCount}`);
 
             if (status.status === 'completed') {
                 clearInterval(statusCheckInterval);
@@ -157,7 +161,7 @@ async function monitorParsing() {
         } catch (error) {
             console.error('Ошибка при проверке статуса:', error);
         }
-    }, 1000);
+    }, 500);
 }
 
 async function loadResults() {
