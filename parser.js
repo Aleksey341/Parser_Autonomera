@@ -602,13 +602,10 @@ class AutonomeraParser {
     }
 
     /**
-     * Загружает детали объявления и извлекает даты
+     * Загружает детали объявления и извлекает даты (без задержки)
      */
-    async getListingDetails(advertId, baseUrl) {
+    async getListingDetailsNow(advertId, baseUrl) {
         try {
-            // Добавляем небольшую задержку чтобы не перегружать сервер
-            await this.delay(this.delayMs);
-
             const url = `${baseUrl}/standart/${advertId}`;
             const https = require('https');
 
@@ -654,6 +651,45 @@ class AutonomeraParser {
     }
 
     /**
+     * Загружает детали для нескольких объявлений параллельно
+     */
+    async getMultipleListingDetails(advertIds, baseUrl, concurrency = 10) {
+        const results = new Map();
+        const queue = [...advertIds];
+        const active = new Set();
+
+        const processNext = async () => {
+            if (queue.length === 0 && active.size === 0) {
+                return;
+            }
+
+            while (active.size < concurrency && queue.length > 0) {
+                const advertId = queue.shift();
+                const promise = this.getListingDetailsNow(advertId, baseUrl)
+                    .then(details => {
+                        active.delete(promise);
+                        results.set(advertId, details);
+                        return processNext();
+                    })
+                    .catch(() => {
+                        active.delete(promise);
+                        results.set(advertId, { datePosted: '', dateUpdated: '' });
+                        return processNext();
+                    });
+
+                active.add(promise);
+            }
+
+            if (active.size > 0) {
+                await Promise.race(active);
+            }
+        };
+
+        await processNext();
+        return results;
+    }
+
+    /**
      * Парсит объявления из API ответа (формат таблицы)
      */
     async parseListingsFromAPIResponse($, existingNumbers) {
@@ -671,6 +707,10 @@ class AutonomeraParser {
 
         // Преобразуем jQuery collection в массив для использования в for..of
         const rowsArray = rows.toArray();
+
+        // Сначала собираем информацию о всех объявлениях (без загрузки деталей)
+        const listings = [];
+        const advertIdsToLoad = [];
 
         for (let i = 0; i < rowsArray.length; i++) {
             const element = rowsArray[i];
@@ -739,17 +779,6 @@ class AutonomeraParser {
                 console.log(`⚠️ Объявление ${i + 1} (${number}): не найдена цена в тексте: "${priceText.substring(0, 200)}"...`);
             }
 
-            // Загружаем детали объявления для получения правильных дат
-            const details = await this.getListingDetails(advertId, this.baseUrl);
-            let datePosted = details.datePosted || this.formatDateToDDMMYYYY(new Date());
-            let dateUpdated = details.dateUpdated || datePosted;
-
-            // Если даты не найдены, используем текущую дату
-            if (!details.datePosted) {
-                datePosted = this.formatDateToDDMMYYYY(new Date());
-                dateUpdated = datePosted;
-            }
-
             // URL из href
             let url = `${this.baseUrl}/standart/${advertId}`;
             const href = $row.attr('href');
@@ -757,31 +786,43 @@ class AutonomeraParser {
                 url = `${this.baseUrl}${href}`;
             }
 
-            const listing = {
-                id: `${number}-${advertId}`,
-                number: number,
-                price: price,
-                datePosted: datePosted,
-                dateUpdated: dateUpdated,
-                status: 'активно',
-                seller: 'неизвестно',
-                url: url,
-                region: this.extractRegion(number),
-                parsedAt: new Date().toISOString()
-            };
+            // Сохраняем информацию о объявлении
+            listings.push({
+                advertId, number, price, url,
+                region: this.extractRegion(number)
+            });
 
-            if (this.meetsFilters(listing)) {
-                this.listings.push(listing);
-                existingNumbers.add(number);
-                count++;
-            } else {
-                // Логируем почему объявление отфильтровано
-                if (!listing.number) {
-                    console.log(`⏭️ [${i}] Пропущено: нет номера`);
-                } else if (listing.price > 0 && (listing.price < this.minPrice || listing.price > this.maxPrice)) {
-                    console.log(`⏭️ [${i}] Пропущено: ${number} цена ${listing.price} вне диапазона ${this.minPrice}-${this.maxPrice}`);
-                } else if (this.region && listing.region !== this.region) {
-                    console.log(`⏭️ [${i}] Пропущено: ${number} регион ${listing.region} не совпадает с ${this.region}`);
+            advertIdsToLoad.push(advertId);
+        }
+
+        // Теперь загружаем детали всех объявлений параллельно (по 10 одновременно)
+        if (advertIdsToLoad.length > 0) {
+            console.log(`📥 Загружаю детали для ${advertIdsToLoad.length} объявлений (10 параллельно)...`);
+            const detailsMap = await this.getMultipleListingDetails(advertIdsToLoad, this.baseUrl, 10);
+
+            // Добавляем объявления в список с загруженными датами
+            for (const listingInfo of listings) {
+                const details = detailsMap.get(listingInfo.advertId) || { datePosted: '', dateUpdated: '' };
+                let datePosted = details.datePosted || this.formatDateToDDMMYYYY(new Date());
+                let dateUpdated = details.dateUpdated || datePosted;
+
+                const listing = {
+                    id: `${listingInfo.number}-${listingInfo.advertId}`,
+                    number: listingInfo.number,
+                    price: listingInfo.price,
+                    datePosted: datePosted,
+                    dateUpdated: dateUpdated,
+                    status: 'активно',
+                    seller: 'неизвестно',
+                    url: listingInfo.url,
+                    region: listingInfo.region,
+                    parsedAt: new Date().toISOString()
+                };
+
+                if (this.meetsFilters(listing)) {
+                    this.listings.push(listing);
+                    existingNumbers.add(listing.number);
+                    count++;
                 }
             }
         }
