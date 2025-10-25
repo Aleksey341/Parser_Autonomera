@@ -143,9 +143,9 @@
                     <table id="regionsTable">
                         <thead>
                             <tr>
-                                <th>Регион</th>
-                                <th>Объявлений</th>
-                                <th>Средняя цена</th>
+                                <th class="sortable-header" onclick="sortRegionsTable('region')">📍 Регион <span id="regionSort"></span></th>
+                                <th class="sortable-header" onclick="sortRegionsTable('count')">📊 Объявлений <span id="countSort"></span></th>
+                                <th class="sortable-header" onclick="sortRegionsTable('avgPrice')">💰 Средняя цена <span id="avgPriceSort"></span></th>
                             </tr>
                         </thead>
                         <tbody id="regionsBody">

@@ -286,6 +286,8 @@ table th {
     transition: all 0.2s ease;
     position: relative;
     font-weight: 600;
+    padding: 12px 15px;
+    text-align: left;
 }
 
 .sortable-header:hover {
@@ -294,7 +296,9 @@ table th {
 }
 
 .sortable-header:active {
-    transform: scale(0.98);
+    background: #d4dce8;
+    color: #667eea;
+    opacity: 1;
 }
 
 table td {

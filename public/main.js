@@ -9,6 +9,13 @@ let parsingTimerInterval = null;
 let foundCount = 0; // Количество найденных объявлений
 let isStopped = false; // Был ли парсинг остановлен
 
+// Конфигурация сортировки для регионов
+let regionsSortConfig = {
+    column: 'region',
+    direction: 'asc',
+    data: [] // Сохраняем данные регионов для сортировки
+};
+
 // Автоматически определяем URL сервера
 let serverUrl;
 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -411,6 +418,74 @@ function sortTable(columnName) {
     displayResults();
 }
 
+/**
+ * Функция сортировки таблицы регионов
+ */
+function sortRegionsTable(columnName) {
+    if (regionsSortConfig.column === columnName) {
+        // Переключаем направление сортировки
+        regionsSortConfig.direction = regionsSortConfig.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        // Устанавливаем новую колонку и направление по умолчанию
+        regionsSortConfig.column = columnName;
+        regionsSortConfig.direction = 'asc';
+    }
+    renderRegionsTable();
+}
+
+/**
+ * Отрендеривает таблицу регионов с сортировкой
+ */
+function renderRegionsTable() {
+    // Копируем данные для сортировки
+    let sortedData = [...regionsSortConfig.data];
+
+    // Выполняем сортировку
+    sortedData.sort((a, b) => {
+        let aValue = a[regionsSortConfig.column];
+        let bValue = b[regionsSortConfig.column];
+
+        // Для числовых значений
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+            return regionsSortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+
+        // Для строк
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+            return regionsSortConfig.direction === 'asc'
+                ? aValue.localeCompare(bValue, 'ru')
+                : bValue.localeCompare(aValue, 'ru');
+        }
+
+        return 0;
+    });
+
+    // Обновляем индикаторы сортировки
+    document.getElementById('regionSort').textContent = regionsSortConfig.column === 'region'
+        ? (regionsSortConfig.direction === 'asc' ? '▲' : '▼')
+        : '';
+    document.getElementById('countSort').textContent = regionsSortConfig.column === 'count'
+        ? (regionsSortConfig.direction === 'asc' ? '▲' : '▼')
+        : '';
+    document.getElementById('avgPriceSort').textContent = regionsSortConfig.column === 'avgPrice'
+        ? (regionsSortConfig.direction === 'asc' ? '▲' : '▼')
+        : '';
+
+    // Генерируем HTML для таблицы
+    let regionRows = '';
+    for (const regionData of sortedData) {
+        regionRows += `
+            <tr>
+                <td><a href="#" class="region-link" onclick="filterByRegion('${regionData.region}'); return false;">📍 ${regionData.region}</a></td>
+                <td>${regionData.count}</td>
+                <td>₽${regionData.avgPrice.toLocaleString('ru-RU')}</td>
+            </tr>
+        `;
+    }
+
+    document.getElementById('regionsBody').innerHTML = regionRows || '<tr><td colspan="3" style="text-align: center; color: #999;">Нет данных</td></tr>';
+}
+
 async function updateStats() {
     if (!currentSessionId || allData.length === 0) return;
 
@@ -426,22 +501,21 @@ async function updateStats() {
         document.getElementById('uniqueSellers').textContent = stats.uniqueSellers;
 
         if (stats.regions && stats.regions.length > 0) {
-            let regionRows = '';
-            for (const region of stats.regions) {
+            // Сохраняем данные регионов для сортировки
+            regionsSortConfig.data = stats.regions.map(region => {
                 const regionListings = allData.filter(l => l.region === region);
                 const avgPrice = regionListings.length > 0
                     ? Math.round(regionListings.reduce((a, b) => a + b.price, 0) / regionListings.length)
                     : 0;
+                return {
+                    region: region,
+                    count: regionListings.length,
+                    avgPrice: avgPrice
+                };
+            });
 
-                regionRows += `
-                    <tr>
-                        <td><a href="#" class="region-link" onclick="filterByRegion('${region}'); return false;">📍 ${region}</a></td>
-                        <td>${regionListings.length}</td>
-                        <td>₽${avgPrice.toLocaleString('ru-RU')}</td>
-                    </tr>
-                `;
-            }
-            document.getElementById('regionsBody').innerHTML = regionRows;
+            // Отрендериваем таблицу регионов с сортировкой
+            renderRegionsTable();
         }
 
     } catch (error) {
