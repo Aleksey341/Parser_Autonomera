@@ -280,25 +280,16 @@ table th {
     white-space: nowrap;
 }
 
-.filter-row th {
-    padding: 8px 10px;
-    background: #f0f0f0;
-    border-top: 1px solid #ddd;
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    position: relative;
 }
 
-.filter-input {
-    width: 100%;
-    padding: 8px 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 12px;
-    font-family: inherit;
-}
-
-.filter-input:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+.sortable-header:hover {
+    background: #e8ecf1;
+    color: #667eea;
 }
 
 table td {

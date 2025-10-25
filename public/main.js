@@ -288,6 +288,12 @@ function showMessage(type, message) {
     container.innerHTML = `<div class="status-message ${type}">${message}</div>`;
 }
 
+// Переменные для сортировки
+let sortConfig = {
+    column: 'datePosted',
+    direction: 'desc' // 'asc' или 'desc'
+};
+
 function displayResults() {
     const tableContainer = document.getElementById('tableContainer');
 
@@ -302,8 +308,25 @@ function displayResults() {
         return;
     }
 
+    // Сортируем данные
+    const sortedData = [...filteredData].sort((a, b) => {
+        let aVal = a[sortConfig.column];
+        let bVal = b[sortConfig.column];
+
+        // Специальная обработка для цены (числовое сравнение)
+        if (sortConfig.column === 'price') {
+            aVal = Number(aVal) || 0;
+            bVal = Number(bVal) || 0;
+        }
+
+        // Сравнение значений
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
     let rows = '';
-    for (const item of filteredData) {
+    for (const item of sortedData) {
         const statusClass = item.status === 'активно' ? 'status-active' : 'status-inactive';
         rows += `
             <tr>
@@ -318,37 +341,45 @@ function displayResults() {
         `;
     }
 
+    // Генерируем заголовки с индикаторами сортировки
+    const getHeaderHTML = (columnName, displayName) => {
+        const indicator = sortConfig.column === columnName
+            ? (sortConfig.direction === 'asc' ? ' ▲' : ' ▼')
+            : '';
+        return `<th class="sortable-header" onclick="sortTable('${columnName}')">${displayName}${indicator}</th>`;
+    };
+
     tableContainer.innerHTML = `
         <table>
             <thead>
                 <tr class="header-row">
-                    <th>Номер автомобиля</th>
-                    <th>Цена</th>
-                    <th>Дата размещения</th>
-                    <th>Дата обновления</th>
-                    <th>Статус</th>
-                    <th>Регион</th>
-                    <th>URL</th>
-                </tr>
-                <tr class="filter-row">
-                    <th><input type="text" class="filter-input" id="filterNumber" placeholder="Поиск номера..." onkeyup="applyTableFilters()"></th>
-                    <th><input type="text" class="filter-input" id="filterPrice" placeholder="Мин-макс цена..." onkeyup="applyTableFilters()"></th>
-                    <th><input type="text" class="filter-input" id="filterDatePosted" placeholder="Дата размещения..." onkeyup="applyTableFilters()"></th>
-                    <th><input type="text" class="filter-input" id="filterDateUpdated" placeholder="Дата обновления..." onkeyup="applyTableFilters()"></th>
-                    <th>
-                        <select class="filter-input" id="filterStatus" onchange="applyTableFilters()">
-                            <option value="">Все статусы</option>
-                            <option value="активно">Активно</option>
-                            <option value="снято">Снято</option>
-                        </select>
-                    </th>
-                    <th><input type="text" class="filter-input" id="filterRegion" placeholder="Регион..." onkeyup="applyTableFilters()"></th>
-                    <th></th>
+                    ${getHeaderHTML('number', 'Номер автомобиля')}
+                    ${getHeaderHTML('price', 'Цена')}
+                    ${getHeaderHTML('datePosted', 'Дата размещения')}
+                    ${getHeaderHTML('dateUpdated', 'Дата обновления')}
+                    ${getHeaderHTML('status', 'Статус')}
+                    ${getHeaderHTML('region', 'Регион')}
+                    <th>Ссылка</th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
         </table>
     `;
+}
+
+/**
+ * Функция сортировки таблицы
+ */
+function sortTable(columnName) {
+    if (sortConfig.column === columnName) {
+        // Переключаем направление сортировки
+        sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        // Устанавливаем новую колонку и направление по умолчанию
+        sortConfig.column = columnName;
+        sortConfig.direction = 'asc';
+    }
+    displayResults();
 }
 
 async function updateStats() {
@@ -409,37 +440,6 @@ function applyFilters() {
 /**
  * Применяет фильтры прямо в таблице результатов
  */
-function applyTableFilters() {
-    const numberFilter = document.getElementById('filterNumber')?.value.toLowerCase() || '';
-    const priceFilter = document.getElementById('filterPrice')?.value.toLowerCase() || '';
-    const datePostedFilter = document.getElementById('filterDatePosted')?.value.toLowerCase() || '';
-    const dateUpdatedFilter = document.getElementById('filterDateUpdated')?.value.toLowerCase() || '';
-    const statusFilter = document.getElementById('filterStatus')?.value || '';
-    const regionFilter = document.getElementById('filterRegion')?.value.toLowerCase() || '';
-
-    // Фильтруем данные
-    filteredData = allData.filter(item => {
-        const matchesNumber = !numberFilter || (item.number && item.number.toLowerCase().includes(numberFilter));
-        const matchesDatePosted = !datePostedFilter || (item.datePosted && item.datePosted.toLowerCase().includes(datePostedFilter));
-        const matchesDateUpdated = !dateUpdatedFilter || (item.dateUpdated && item.dateUpdated.toLowerCase().includes(dateUpdatedFilter));
-        const matchesStatus = !statusFilter || item.status === statusFilter;
-        const matchesRegion = !regionFilter || (item.region && item.region.toLowerCase().includes(regionFilter));
-
-        // Фильтр по цене (поддерживает формат "min-max")
-        let matchesPrice = true;
-        if (priceFilter) {
-            const priceParts = priceFilter.split('-').map(p => p.trim());
-            const minPrice = parseInt(priceParts[0]) || 0;
-            const maxPrice = parseInt(priceParts[1]) || Infinity;
-            matchesPrice = item.price >= minPrice && item.price <= maxPrice;
-        }
-
-        return matchesNumber && matchesPrice && matchesDatePosted && matchesDateUpdated && matchesStatus && matchesRegion;
-    });
-
-    displayResults();
-}
-
 function resetFilters() {
     document.getElementById('searchFilter').value = '';
     document.getElementById('statusFilter').value = '';
