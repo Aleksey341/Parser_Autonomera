@@ -762,17 +762,59 @@ class AutonomeraParser {
         const priceText = $elem.find('[class*="price"]').text() || text;
         const price = this.extractPrice(priceText);
 
-        // Ищем даты в разных возможных местах карточки
-        // Дата размещения может быть в классах с "date", "posted", "published"
-        let datePostedText = $elem.find('[class*="date"]').text() ||
+        // Ищем даты в структуре user-data-table
+        // Дата размещения: ищем ячейку с текстом "Дата размещения" и берем следующую ячейку
+        let datePostedText = '';
+        const userDataRows = $elem.find('[class*="user-data-table"]');
+        userDataRows.each((i, row) => {
+            const rowText = $(row).text();
+            if (rowText.includes('Дата размещения')) {
+                // Ищем следующий элемент с классом "*__td"
+                const nextTd = $(row).next('[class*="user-data-table__td"]');
+                if (nextTd.length) {
+                    datePostedText = nextTd.text().trim();
+                } else {
+                    // Альтернатива: ищем td внутри этой строки
+                    const td = $(row).find('[class*="user-data-table__td"]');
+                    if (td.length) {
+                        datePostedText = td.first().next().text().trim();
+                    }
+                }
+            }
+        });
+
+        // Дата поднятия: ищем ячейку с текстом "Дата поднятия" и берем следующую ячейку
+        let dateUpdatedText = '';
+        userDataRows.each((i, row) => {
+            const rowText = $(row).text();
+            if (rowText.includes('Дата поднятия')) {
+                // Ищем следующий элемент с классом "*__td"
+                const nextTd = $(row).next('[class*="user-data-table__td"]');
+                if (nextTd.length) {
+                    dateUpdatedText = nextTd.text().trim();
+                } else {
+                    // Альтернатива: ищем td внутри этой строки
+                    const td = $(row).find('[class*="user-data-table__td"]');
+                    if (td.length) {
+                        dateUpdatedText = td.first().next().text().trim();
+                    }
+                }
+            }
+        });
+
+        // Если даты не найдены в user-data-table, ищем по классам
+        if (!datePostedText) {
+            datePostedText = $elem.find('[class*="date"]').text() ||
                             $elem.find('[class*="posted"]').text() ||
                             $elem.find('[class*="published"]').text() || '';
+        }
 
-        // Дата поднятия/обновления может быть в классах с "update", "lifted", "raised", "bump"
-        let dateUpdatedText = $elem.find('[class*="update"]').text() ||
+        if (!dateUpdatedText) {
+            dateUpdatedText = $elem.find('[class*="update"]').text() ||
                              $elem.find('[class*="lifted"]').text() ||
                              $elem.find('[class*="raised"]').text() ||
                              $elem.find('[class*="bump"]').text() || '';
+        }
 
         // Если даты не найдены по классам, ищем в тексте даты в формате ДД.МММ.ГГГГ
         if (!datePostedText) {
@@ -957,6 +999,21 @@ class AutonomeraParser {
         const match = text.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
         if (match) {
             return `${String(match[1]).padStart(2, '0')}.${String(match[2]).padStart(2, '0')}.${match[3]}`;
+        }
+
+        // Формат: "08 декабря 2024" (Russian date format)
+        const russianMonths = {
+            'января': '01', 'февраля': '02', 'марта': '03', 'апреля': '04',
+            'мая': '05', 'июня': '06', 'июля': '07', 'августа': '08',
+            'сентября': '09', 'октября': '10', 'ноября': '11', 'декабря': '12'
+        };
+
+        const russianDateMatch = text.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+(\d{4})/);
+        if (russianDateMatch) {
+            const day = String(russianDateMatch[1]).padStart(2, '0');
+            const month = russianMonths[russianDateMatch[2]];
+            const year = russianDateMatch[3];
+            return `${day}.${month}.${year}`;
         }
 
         // Если это текст типа "сегодня", "вчера"
