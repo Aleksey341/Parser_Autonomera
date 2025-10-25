@@ -60,8 +60,8 @@ app.post('/api/parse', async (req, res) => {
         minPrice = 0,
         maxPrice = Infinity,
         region = null,
-        maxPages = 50,
-        delayMs = 1000
+        maxPages = 200, // Увеличено с 50 до 200 (10,000 объявлений)
+        delayMs = 500 // Уменьшено с 1000 до 500 для скорости
     } = req.body;
 
     const sessionId = generateSessionId();

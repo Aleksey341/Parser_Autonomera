@@ -8,9 +8,9 @@ const { stringify } = require('csv-stringify/sync');
 class AutonomeraParser {
     constructor(options = {}) {
         this.baseUrl = 'https://autonomera777.net';
-        this.timeout = options.timeout || 60000; // Увеличено с 30000 до 60000 для медленных сайтов
-        this.delayMs = options.delayMs || 1000;
-        this.maxPages = options.maxPages || 50;
+        this.timeout = options.timeout || 45000; // 45 секунд для загрузки страницы
+        this.delayMs = options.delayMs || 500; // 500ms задержка между запросами (быстро, но respectful)
+        this.maxPages = options.maxPages || 200; // 200 страниц = ~10,000 объявлений
         this.minPrice = options.minPrice || 0;
         this.maxPrice = options.maxPrice || Infinity;
         this.region = options.region || null;
@@ -171,8 +171,8 @@ class AutonomeraParser {
 
                 console.log('✅ Страница загружена');
 
-                // Ждем, пока объявления загрузятся
-                await this.delay(2000);
+                // Ждем, пока объявления загрузятся (сокращена задержка для скорости)
+                await this.delay(1000);
             } catch (error) {
                 const msg = `Ошибка при загрузке главной страницы: ${error.message}`;
                 console.error('❌', msg);
@@ -342,8 +342,8 @@ class AutonomeraParser {
                     }
                 }
 
-                // Ждем загрузки новых данных (сокращенная задержка для быстрой загрузки)
-                await this.delay(200);
+                // Ждем загрузки новых данных (минимальная задержка для максимальной скорости)
+                await this.delay(50);
 
             } catch (error) {
                 console.log(`⚠️ Ошибка при загрузке данных: ${error.message}`);
@@ -1033,9 +1033,9 @@ async function main() {
     const isDev = args.includes('--dev');
 
     const parser = new AutonomeraParser({
-        timeout: 30000,
-        delayMs: isDev ? 100 : 1000,
-        maxPages: isDev ? 2 : 50,
+        timeout: isDev ? 30000 : 45000,
+        delayMs: isDev ? 100 : 500, // Уменьшено с 1000 до 500 для скорости
+        maxPages: isDev ? 2 : 200, // Увеличено с 50 до 200 (10,000 объявлений)
         minPrice: 0,
         maxPrice: Infinity
     });
