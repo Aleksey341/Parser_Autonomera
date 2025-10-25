@@ -512,7 +512,7 @@ class AutonomeraParser {
         const pageText = $('body').text();
 
         // Находим все номера в формате А123ВХ77
-        const numberPattern = /[А-Я]\d{3}[А-Я]{2}\d{2,3}/g;
+        const numberPattern = /[А-Я]\d{2,3}[А-Я]{2}\d{2,3}/g;
         let match;
         const numbersFound = [];
 
