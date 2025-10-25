@@ -6,6 +6,7 @@ let currentSessionId = null;
 let statusCheckInterval = null;
 let parsingStartTime = null;
 let parsingTimerInterval = null;
+let foundCount = 0; // Количество найденных объявлений
 
 // Автоматически определяем URL сервера
 let serverUrl;
@@ -44,6 +45,8 @@ async function startParsing() {
 
     showMessage('info', '🚀 Начинаем парсинг...');
     document.getElementById('parsingTimer').textContent = '00:00';
+    foundCount = 0;
+    document.getElementById('foundCount').textContent = '0';
     startParsingTimer();
 
     try {
@@ -157,6 +160,8 @@ async function loadResults() {
 
         allData = result.listings || [];
         filteredData = [...allData];
+        foundCount = allData.length;
+        document.getElementById('foundCount').textContent = foundCount;
 
         console.log(`✅ Загруженно ${allData.length} объявлений`);
 
