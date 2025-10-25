@@ -884,7 +884,7 @@ class AutonomeraParser {
             const datePosted = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
             const daysUpdated = Math.floor(Math.random() * daysAgo);
             const dateUpdated = new Date(Date.now() - daysUpdated * 24 * 60 * 60 * 1000);
-            const region = plate.slice(-2);
+            const region = this.extractRegion(plate);
             const seller = sellers[Math.floor(Math.random() * sellers.length)];
 
             const listing = {
