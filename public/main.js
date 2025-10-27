@@ -28,6 +28,21 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
 
 console.log('🚗 Server URL:', serverUrl);
 
+/**
+ * Переводит статус парсинга на русский язык
+ */
+function translateStatus(status) {
+    const translations = {
+        'running': '⏳ Выполняется',
+        'paused': '⏸️ На паузе',
+        'completed': '✅ Завершен',
+        'stopped': '🛑 Остановлен',
+        'error': '❌ Ошибка',
+        'initialization': '🚀 Инициализация'
+    };
+    return translations[status] || status;
+}
+
 async function startParsing() {
     const minPrice = parseInt(document.getElementById('minPrice').value) || 0;
     const maxPrice = parseInt(document.getElementById('maxPrice').value) || Infinity;
@@ -103,7 +118,8 @@ async function monitorParsing() {
             const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/status`);
             const status = await response.json();
 
-            document.getElementById('sessionStatus').textContent = status.status;
+            // Переводим статус на русский язык
+            document.getElementById('sessionStatus').textContent = translateStatus(status.status);
             document.getElementById('loadedCount').textContent = status.listingsCount;
 
             // Обновляем счетчик найденных объявлений в реальном времени
