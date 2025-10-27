@@ -106,9 +106,9 @@ app.post('/api/parse', async (req, res) => {
                 if (result && result.paused) {
                     session.status = 'paused';
                     session.listings = parser.listings;
-                    session.batchNumber = result.result.batchNumber;
+                    session.batchNumber = result.batchNumber;
                     session.totalSoFar = parser.listings.length;
-                    console.log(`⏸️ Сессия ${sessionId} приостановлена на батче ${result.result.batchNumber}: ${parser.listings.length} объявлений`);
+                    console.log(`⏸️ Сессия ${sessionId} приостановлена на батче ${result.batchNumber}: ${parser.listings.length} объявлений`);
                     console.log(`👉 Для продолжения вызовите: POST /api/sessions/${sessionId}/continue`);
                 } else {
                     session.status = 'completed';
@@ -473,8 +473,8 @@ app.post('/api/sessions/:id/continue', async (req, res) => {
                 // Парсинг снова приостановлен на следующем батче
                 session.status = 'paused';
                 session.listings = parser.listings;
-                session.batchNumber = result.result.batchNumber;
-                console.log(`⏸️ Сессия ${id} приостановлена на батче ${result.result.batchNumber}: ${parser.listings.length} объявлений`);
+                session.batchNumber = result.batchNumber;
+                console.log(`⏸️ Сессия ${id} приостановлена на батче ${result.batchNumber}: ${parser.listings.length} объявлений`);
             } else {
                 // Парсинг полностью завершен
                 session.status = 'completed';
@@ -537,8 +537,8 @@ app.post('/api/sessions/:sessionId/resume', async (req, res) => {
                 // Парсинг снова приостановлен на следующем батче
                 session.status = 'paused';
                 session.listings = parser.listings;
-                session.batchNumber = result.result.batchNumber;
-                console.log(`⏸️ Сессия ${sessionId} приостановлена на батче ${result.result.batchNumber}: ${parser.listings.length} объявлений`);
+                session.batchNumber = result.batchNumber;
+                console.log(`⏸️ Сессия ${sessionId} приостановлена на батче ${result.batchNumber}: ${parser.listings.length} объявлений`);
             } else {
                 // Парсинг полностью завершен
                 session.status = 'completed';

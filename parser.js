@@ -121,7 +121,7 @@ class AutonomeraParser {
                 console.log(`\n⏸️ Парсинг ПРИОСТАНОВЛЕН после ${result.count} объявлений`);
                 console.log(`🎯 Батч ${result.batchNumber} готов к экспорту`);
                 console.log(`👉 Вызовите parse() снова для продолжения батча\n`);
-                return { paused: true, result: result };
+                return result; // Возвращаем результат напрямую с полями: paused, batchNumber, count
             }
 
             console.log(`\n✅ Парсинг завершен!`);
