@@ -54,7 +54,11 @@ async function startParsing() {
     document.getElementById('progressSection').classList.add('active');
 
     showMessage('info', '🚀 Начинаем парсинг...');
+    // Сразу обновляем статус (не ждем первого обновления с сервера)
+    document.getElementById('statusText').textContent = '🚀 Начинаем парсинг...';
+    document.getElementById('sessionStatus').textContent = 'Инициализация...';
     document.getElementById('parsingTimer').textContent = '00:00';
+    document.getElementById('loadedCount').textContent = '0';
     foundCount = 0;
     document.getElementById('foundCount').textContent = '0';
     isStopped = false;
