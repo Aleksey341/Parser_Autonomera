@@ -235,6 +235,10 @@ class AutonomeraParser {
         let batchCount = this.batchCount; // Продолжаем с последнего батча
         let consecutiveEmptyResponses = 0;
 
+        // Сохраняем количество объявлений ДО этого батча для фильтрации дубликатов ВНУТРИ батча
+        const listingsCountBefore = this.listings.length;
+        console.log(`📊 Начинаем батч ${batchCount + 1} (объявлений в начале: ${listingsCountBefore})`);
+
         console.log(`⚡ Использование параллельных запросов: ${this.concurrentRequests} одновременно (задержка: ${this.requestDelayMs}ms)`);
 
         while (iteration < maxIterations) {
@@ -303,7 +307,10 @@ class AutonomeraParser {
 
                     if (result.html && result.html.trim()) {
                         const $ = cheerio.load(result.html);
-                        const existingNumbers = new Set(this.listings.map(l => l.number));
+                        // Создаем Set только из объявлений, добавленных в ЭТОМ батче
+                        // Это позволяет добавлять новые объявления при продолжении парсинга
+                        const listingsInThisBatch = this.listings.slice(listingsCountBefore);
+                        const existingNumbers = new Set(listingsInThisBatch.map(l => l.number));
                         const newCount = await this.parseListingsFromAPIResponse($, existingNumbers);
                         totalNewCount += newCount;
 
@@ -751,9 +758,9 @@ class AutonomeraParser {
             foundAdvertIds.add(advertId);
             foundNumbers.add(number);
 
-            // Проверяем, есть ли уже в списке
-            if (existingNumbers.has(number) || this.listings.some(l => l.number === number)) {
-                continue; // Уже есть в списке
+            // Проверяем, есть ли уже в ЭТОМ БАТЧЕ (existingNumbers содержит только объявления из этого батча)
+            if (existingNumbers.has(number)) {
+                continue; // Уже видели в этом батче
             }
 
             // Ищем цену - может быть в разных форматах
