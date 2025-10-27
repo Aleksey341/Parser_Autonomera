@@ -112,8 +112,9 @@ async function monitorParsing() {
             if (status.status === 'completed') {
                 clearInterval(statusCheckInterval);
                 stopParsingTimer();
-                await loadResults();
-                showMessage('success', `✅ Парсинг завершен! Загруженно ${status.listingsCount} объявлений`);
+                // false - заменяем данные (полная загрузка готова)
+                await loadResults(false);
+                showMessage('success', `✅ Парсинг завершен! Всего загруженно ${status.listingsCount} объявлений`);
                 document.getElementById('startBtn').disabled = false;
                 document.getElementById('continueBtn').disabled = true;
                 document.getElementById('continueBtn').style.display = 'none';
@@ -125,8 +126,9 @@ async function monitorParsing() {
             } else if (status.status === 'paused') {
                 clearInterval(statusCheckInterval);
                 stopParsingTimer();
-                await loadResults();
-                showMessage('success', `✅ Батч ${status.batch.number || 1} готов! Загруженно ${status.listingsCount} объявлений\n👉 Нажмите "Продолжить" для загрузки следующего батча (еще +2000)`);
+                // Передаем true для добавления новых данных к существующим (продолжение батча)
+                await loadResults(true);
+                showMessage('success', `✅ Батч ${status.batch.number || 1} готов! Всего загруженно ${status.listingsCount} объявлений\n👉 Нажмите "Продолжить" для загрузки следующего батча`);
                 document.getElementById('startBtn').disabled = true;
                 document.getElementById('continueBtn').disabled = false;
                 document.getElementById('continueBtn').style.display = 'inline-block';
@@ -138,8 +140,9 @@ async function monitorParsing() {
             } else if (status.status === 'stopped') {
                 clearInterval(statusCheckInterval);
                 stopParsingTimer();
-                await loadResults();
-                showMessage('success', `✅ Парсинг остановлен! Собрано ${status.listingsCount} объявлений`);
+                // true - добавляем к существующим (пользователь остановил, может возобновить)
+                await loadResults(true);
+                showMessage('success', `✅ Парсинг остановлен! Всего собрано ${status.listingsCount} объявлений`);
                 document.getElementById('startBtn').disabled = false;
                 document.getElementById('continueBtn').disabled = true;
                 document.getElementById('continueBtn').style.display = 'none';
@@ -165,7 +168,7 @@ async function monitorParsing() {
     }, 500);
 }
 
-async function loadResults() {
+async function loadResults(isAppend = false) {
     if (!currentSessionId) {
         console.log('❌ Session ID не установлен');
         return;
@@ -183,12 +186,26 @@ async function loadResults() {
         const result = await response.json();
         console.log('📋 Результат:', result);
 
-        allData = result.listings || [];
+        const newListings = result.listings || [];
+
+        // Если это продолжение батча - ДОБАВЛЯЕМ к существующим данным
+        // Иначе - ЗАМЕНЯЕМ данные
+        if (isAppend && allData.length > 0) {
+            console.log(`📊 Добавляем ${newListings.length} новых объявлений к существующим ${allData.length}`);
+            // Объединяем данные, избегая дубликатов по ID
+            const existingIds = new Set(allData.map(item => item.id));
+            const newItems = newListings.filter(item => !existingIds.has(item.id));
+            allData = [...allData, ...newItems];
+        } else {
+            console.log(`📊 Заменяем данные: ${newListings.length} объявлений`);
+            allData = newListings;
+        }
+
         filteredData = [...allData];
         foundCount = allData.length;
         document.getElementById('foundCount').textContent = foundCount;
 
-        console.log(`✅ Загруженно ${allData.length} объявлений`);
+        console.log(`✅ Всего загруженно ${allData.length} объявлений`);
 
         displayResults();
         updateStats();
@@ -216,15 +233,20 @@ async function continueParsing() {
         const result = await response.json();
         console.log('Continue response:', result);
 
-        showMessage('info', `▶️ Продолжаем загрузку... Текущих объявлений: ${result.currentCount}`);
+        showMessage('info', `▶️ Продолжаем загрузку следующего батча... Текущих объявлений: ${result.currentCount}`);
 
         document.getElementById('spinnerContinue').style.display = 'none';
         document.getElementById('spinner').style.display = 'inline-block';
         document.getElementById('startBtn').disabled = true;
         document.getElementById('continueBtn').style.display = 'none';
 
-        // Перезагружаем таймер при продолжении парсинга
-        startParsingTimer();
+        // НЕ сбрасываем таймер - продолжаем отсчет (не очищаем parsingStartTime)
+        // startParsingTimer(); // Закомментировано - продолжаем существующий таймер
+
+        // Очищаем старый интервал перед новым мониторингом
+        if (statusCheckInterval) {
+            clearInterval(statusCheckInterval);
+        }
 
         monitorParsing();
 
