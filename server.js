@@ -5,7 +5,12 @@ const fs = require('fs');
 const { stringify } = require('csv-stringify/sync');
 const XLSX = require('xlsx');
 const AutonomeraParser = require('./parser');
-const db = require('./db');
+
+// Используем PostgreSQL модуль если DATABASE_URL определена, иначе MySQL
+const db = process.env.DATABASE_URL
+  ? require('./db-pg')
+  : require('./db');
+
 const { runParserWithDB, ParserDBAdapter } = require('./parser-db');
 const { getScheduler } = require('./scheduler');
 const apiDbRoutes = require('./api-db-routes');
