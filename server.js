@@ -5,6 +5,11 @@ const fs = require('fs');
 const { stringify } = require('csv-stringify/sync');
 const XLSX = require('xlsx');
 const AutonomeraParser = require('./parser');
+const db = require('./db');
+const { runParserWithDB, ParserDBAdapter } = require('./parser-db');
+const { getScheduler } = require('./scheduler');
+const apiDbRoutes = require('./api-db-routes');
+require('dotenv').config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -30,6 +35,9 @@ app.use((req, res, next) => {
 
 // Не шумим favicon
 app.get('/favicon.ico', (req, res) => res.sendStatus(204));
+
+// Подключаем маршруты для работы с БД
+app.use('/api', apiDbRoutes);
 
 // Хранилище активных сессий парсинга
 const sessions = new Map();
@@ -745,34 +753,69 @@ app.use((err, req, res, next) => {
     });
 });
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 API сервер запущен на http://0.0.0.0:${PORT}`);
-    console.log(`📚 API документация доступна на http://0.0.0.0:${PORT}/api/health`);
-    console.log(`\n📍 Основные endpoints:`);
-    console.log(`   GET    /                               - главная страница`);
-    console.log(`   GET    /run                            - запуск парсера с редиректом на статус`);
-    console.log(`   GET    /session/:id                    - страница статуса сессии`);
-    console.log(`   POST   /api/parse                      - начать парсинг`);
-    console.log(`   GET    /api/sessions                   - список сессий`);
-    console.log(`   GET    /api/sessions/:id/status        - статус сессии (с инфо о батчах)`);
-    console.log(`   GET    /api/sessions/:id/data          - данные парсинга`);
-    console.log(`   GET    /api/sessions/:id/stats         - статистика`);
-    console.log(`   GET    /api/sessions/:id/export?format=csv|json - экспорт`);
-    console.log(`   POST   /api/sessions/:id/continue      - продолжить парсинг (батч по 500)`);
-    console.log(`   DELETE /api/sessions/:id               - удалить сессию`);
-    console.log(`\n⚡ НОВОЕ: Парсер загружает по 500 объявлений, затем паузирует!`);
-    console.log(`   1. Начните парсинг: GET /run?priceMin=0&priceMax=10000000&region=`);
-    console.log(`   2. Автоматический редирект на /session/:id`);
-    console.log(`   3. При статусе "paused" нажмите "Продолжить"`);
-});
+// Инициализируем приложение
+async function initializeApp() {
+    try {
+        // Инициализируем БД
+        console.log('\n' + '='.repeat(60));
+        console.log('🗄️  ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ');
+        console.log('='.repeat(60));
+        await db.initializeDatabase();
 
-// Обработчик закрытия
-process.on('SIGINT', () => {
-    console.log('\n\n👋 Shutting down server...');
-    server.close(() => {
-        console.log('✅ Server closed');
-        process.exit(0);
-    });
-});
+        // Инициализируем планировщик
+        console.log('\n' + '='.repeat(60));
+        console.log('📅 ИНИЦИАЛИЗАЦИЯ ПЛАНИРОВЩИКА');
+        console.log('='.repeat(60));
+        const scheduler = await getScheduler();
+        console.log(`ℹ️  Планировщик: ${scheduler.getStatus().isActive ? 'АКТИВЕН' : 'НЕАКТИВЕН'}`);
+
+        // Запускаем сервер
+        const server = app.listen(PORT, '0.0.0.0', () => {
+            console.log(`\n🚀 API сервер запущен на http://0.0.0.0:${PORT}`);
+            console.log(`📚 API документация доступна на http://0.0.0.0:${PORT}/api/health`);
+            console.log(`\n📍 Основные endpoints:`);
+            console.log(`   GET    /                               - главная страница`);
+            console.log(`   GET    /run                            - запуск парсера с редиректом на статус`);
+            console.log(`   GET    /session/:id                    - страница статуса сессии`);
+            console.log(`   POST   /api/parse                      - начать парсинг`);
+            console.log(`   GET    /api/sessions                   - список сессий`);
+            console.log(`   GET    /api/sessions/:id/status        - статус сессии (с инфо о батчах)`);
+            console.log(`   GET    /api/sessions/:id/data          - данные парсинга`);
+            console.log(`   GET    /api/sessions/:id/stats         - статистика`);
+            console.log(`   GET    /api/sessions/:id/export?format=csv|json - экспорт`);
+            console.log(`   POST   /api/sessions/:id/continue      - продолжить парсинг (батч по 500)`);
+            console.log(`   DELETE /api/sessions/:id               - удалить сессию`);
+            console.log(`\n📊 НОВЫЕ ENDPOINTS (БД):`);
+            console.log(`   GET    /api/data                       - получить все данные из БД`);
+            console.log(`   GET    /api/statistics                 - статистика`);
+            console.log(`   GET    /api/export                     - экспорт из БД`);
+            console.log(`   GET    /api/db/status                  - статус БД`);
+            console.log(`   GET    /api/parse-sessions             - список сессий парсинга`);
+            console.log(`   GET    /api/cron-logs                  - логи автообновления`);
+            console.log(`\n⚡ НОВОЕ: Парсер загружает по 500 объявлений, затем паузирует!`);
+            console.log(`   1. Начните парсинг: GET /run?priceMin=0&priceMax=10000000&region=`);
+            console.log(`   2. Автоматический редирект на /session/:id`);
+            console.log(`   3. При статусе "paused" нажмите "Продолжить"`);
+            console.log(`\n✅ СИСТЕМА ГОТОВА К РАБОТЕ`);
+            console.log('='.repeat(60) + '\n');
+        });
+
+        // Обработчик закрытия
+        process.on('SIGINT', () => {
+            console.log('\n\n👋 Shutting down server...');
+            server.close(() => {
+                console.log('✓ Server closed');
+                process.exit(0);
+            });
+        });
+
+    } catch (error) {
+        console.error('❌ Критическая ошибка инициализации:', error);
+        process.exit(1);
+    }
+}
+
+// Запускаем приложение
+initializeApp();
 
 module.exports = app;

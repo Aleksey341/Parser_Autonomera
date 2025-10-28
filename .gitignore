@@ -56,3 +56,70 @@ build/
 parser_test_final.log
 parser_output.log
 test_export.csv
+
+# Session states
+session_state_*.json
+
+# Old bot files
+bot*.py
+test_*.js
+analyze_*.js
+analyze_*.py
+
+# Old documentation
+BATCH_*.md
+GITHUB_*.md
+GITHUB_*.txt
+PUSH_TO_GITHUB.md
+QUICK_START.md
+RUN_ME.txt
+SETUP_COMPLETE.md
+CHANGES_SUMMARY.txt
+FINAL_REPORT.txt
+FIXES_APPLIED.md
+FIX_COMPLETION_REPORT.txt
+
+# Old projects
+mvp-fix-agriculture/
+process-form/
+rekbot/
+reports-system/
+stable-diffusion-webui/
+venv/
+myenv/
+tts_env/
+tts_env_310/
+
+# Windows user directories (keep only necessary)
+AppData/
+Desktop/
+Documents/
+Downloads/
+Music/
+Pictures/
+Videos/
+Contacts/
+Favorites/
+OneDrive/
+YandexDisk/
+
+# Windows system files
+NTUSER.DAT*
+ntuser.dat*
+.ssh/
+.bash_history
+Cookies/
+"Local Settings"/
+"Application Data"/
+
+# Random test files
+*.exe
+*.xlsx
+*.html
+*.css
+app.js
+parser.html
+index.html
+find_api.js
+get_*.py
+rostelecom_*.js
