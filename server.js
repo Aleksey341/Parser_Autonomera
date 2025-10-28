@@ -76,23 +76,25 @@ app.get('/api/health', (req, res) => {
 
 /**
  * POST /api/parse - начало парсинга
+ * Поддерживает режим: demo (загрузка готовых данных из JSON) или live (реальный парсинг)
  */
 app.post('/api/parse', async (req, res) => {
     const {
         minPrice = 0,
         maxPrice = Infinity,
         region = null,
-        maxPages = 200, // 200 страниц = 10,000 объявлений за батч
-        delayMs = 100, // 100ms задержка для максимальной скорости
-        concurrentRequests = 500, // 500 параллельных запросов (оптимально для Puppeteer)
-        requestDelayMs = 50 // 50ms задержка между параллельными запросами
+        maxPages = 200,
+        delayMs = 100,
+        concurrentRequests = 500,
+        requestDelayMs = 50,
+        mode = 'live' // 'live' - реальный парсинг, 'demo' - загрузка из JSON
     } = req.body;
 
     const sessionId = generateSessionId();
 
     console.log(`\n🚀 Новая сессия парсинга: ${sessionId}`);
     console.log(`📊 Параметры: цена ${minPrice}-${maxPrice}, регион: ${region}`);
-    console.log(`⚡ Параллельные запросы: ${concurrentRequests} одновременно (задержка: ${requestDelayMs}ms)`);
+    console.log(`⚡ Режим: ${mode === 'demo' ? 'ДЕМО (загрузка готовых данных)' : 'LIVE (реальный парсинг)'}`);
 
     const parser = new AutonomeraParser({
         minPrice,
@@ -116,50 +118,60 @@ app.post('/api/parse', async (req, res) => {
     res.json({
         sessionId,
         status: 'started',
-        message: 'Парсинг начался'
+        message: `Парсинг начался (режим: ${mode})`
     });
 
     // Запускаем парсинг асинхронно
-    parser.parse()
-        .then(async (result) => {
+    (async () => {
+        try {
             const session = sessions.get(sessionId);
-            if (session) {
-                // Проверяем был ли парсинг приостановлен на батче
-                if (result && result.paused) {
-                    session.status = 'paused';
-                    session.listings = parser.listings;
-                    session.batchNumber = result.batchNumber;
-                    session.totalSoFar = parser.listings.length;
-                    console.log(`⏸️ Сессия ${sessionId} приостановлена на батче ${result.batchNumber}: ${parser.listings.length} объявлений`);
-                    console.log(`👉 Для продолжения вызовите: POST /api/sessions/${sessionId}/continue`);
-                } else {
-                    // Сохраняем в БД
-                    const savedData = await runParserWithDB(parser, sessionId);
+            if (!session) return;
 
-                    // Загружаем ВСЕ данные из БД для показа пользователю
-                    console.log(`📥 Загружаю все объявления из БД...`);
-                    const allListings = await db.getListings({
-                        minPrice: minPrice === 0 ? 0 : minPrice,
-                        maxPrice: maxPrice === Infinity ? 999999999 : maxPrice,
-                        limit: 100000 // получить все
-                    });
+            let result;
 
-                    session.status = 'completed';
-                    session.listings = allListings; // ВСЕ данные из БД!
-                    session.dbInfo = {
-                        totalInDB: allListings.length,
-                        parsedThisTime: parser.listings ? parser.listings.length : 0,
-                        savedData: savedData
-                    };
-                    session.endTime = Date.now();
-                    session.progress = 100;
-                    console.log(`✅ Сессия ${sessionId} завершена:`);
-                    console.log(`   - Спарсено: ${(parser.listings || result).length} объявлений`);
-                    console.log(`   - Показываю из БД: ${allListings.length} объявлений`);
+            // Режим DEMO: загружаем готовые данные из JSON
+            if (mode === 'demo') {
+                console.log(`📂 Режим DEMO: загружаю готовые данные...`);
+                try {
+                    const importedData = require('./imported_listings.json');
+                    parser.listings = importedData;
+                    console.log(`✅ Загружено ${importedData.length} объявлений из JSON`);
+                    result = { paused: false };
+                } catch (err) {
+                    console.warn(`⚠️ Не найден файл imported_listings.json, используем пустой список`);
+                    parser.listings = [];
+                    result = { paused: false };
                 }
+            } else {
+                // Режим LIVE: реальный парсинг сайта
+                result = await parser.parse();
             }
-        })
-        .catch((error) => {
+
+            // Сохраняем в БД
+            const savedData = await runParserWithDB(parser, sessionId);
+
+            // Загружаем ВСЕ данные из БД для показа пользователю
+            console.log(`📥 Загружаю все объявления из БД...`);
+            const allListings = await db.getListings({
+                minPrice: minPrice === 0 ? 0 : minPrice,
+                maxPrice: maxPrice === Infinity ? 999999999 : maxPrice,
+                limit: 100000 // получить все
+            });
+
+            session.status = 'completed';
+            session.listings = allListings; // ВСЕ данные из БД!
+            session.dbInfo = {
+                totalInDB: allListings.length,
+                parsedThisTime: parser.listings ? parser.listings.length : 0,
+                savedData: savedData
+            };
+            session.endTime = Date.now();
+            session.progress = 100;
+            console.log(`✅ Сессия ${sessionId} завершена:`);
+            console.log(`   - Спарсено: ${(parser.listings || result).length} объявлений`);
+            console.log(`   - Показываю из БД: ${allListings.length} объявлений`);
+
+        } catch (error) {
             const session = sessions.get(sessionId);
             if (session) {
                 session.status = 'error';
@@ -167,7 +179,8 @@ app.post('/api/parse', async (req, res) => {
                 session.endTime = Date.now();
             }
             console.error(`❌ Ошибка в сессии ${sessionId}:`, error.message);
-        });
+        }
+    })();
 });
 
 /**
