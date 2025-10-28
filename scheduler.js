@@ -141,18 +141,23 @@ class ParsingScheduler {
    * Обновляет время следующего запуска
    */
   updateNextRun(cronExpression = null) {
+    let hours, minutes;
+
     if (!cronExpression) {
       const time = process.env.PARSER_TIME || '00:00';
-      const [hours, minutes] = time.split(':');
+      const [h, m] = time.split(':');
+      hours = h;
+      minutes = m;
       cronExpression = `${minutes} ${hours} * * *`;
+    } else {
+      // Парсим cron выражение (format: "MM HH * * *")
+      const parts = cronExpression.split(' ');
+      minutes = parseInt(parts[0]);
+      hours = parseInt(parts[1]);
     }
 
     const now = new Date();
     let next = new Date(now);
-    const [, , , , , dayOfWeek] = cronExpression.split(' ');
-
-    // Простое вычисление: если это ежедневное расписание
-    const [, hours, day, month] = cronExpression.split(' ');
     next.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
     if (next <= now) {
