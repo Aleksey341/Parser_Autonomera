@@ -87,6 +87,7 @@ async function startParsing() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
+                mode: 'demo',
                 minPrice,
                 maxPrice: maxPrice === Infinity ? 999999999 : maxPrice,
                 region: null,
