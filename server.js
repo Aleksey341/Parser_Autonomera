@@ -112,7 +112,7 @@ app.post('/api/parse', async (req, res) => {
 
     // Запускаем парсинг асинхронно
     parser.parse()
-        .then((result) => {
+        .then(async (result) => {
             const session = sessions.get(sessionId);
             if (session) {
                 // Проверяем был ли парсинг приостановлен на батче
@@ -124,11 +124,29 @@ app.post('/api/parse', async (req, res) => {
                     console.log(`⏸️ Сессия ${sessionId} приостановлена на батче ${result.batchNumber}: ${parser.listings.length} объявлений`);
                     console.log(`👉 Для продолжения вызовите: POST /api/sessions/${sessionId}/continue`);
                 } else {
+                    // Сохраняем в БД
+                    const savedData = await runParserWithDB(parser, sessionId);
+
+                    // Загружаем ВСЕ данные из БД для показа пользователю
+                    console.log(`📥 Загружаю все объявления из БД...`);
+                    const allListings = await db.getListings({
+                        minPrice: minPrice === 0 ? 0 : minPrice,
+                        maxPrice: maxPrice === Infinity ? 999999999 : maxPrice,
+                        limit: 100000 // получить все
+                    });
+
                     session.status = 'completed';
-                    session.listings = parser.listings || result;
+                    session.listings = allListings; // ВСЕ данные из БД!
+                    session.dbInfo = {
+                        totalInDB: allListings.length,
+                        parsedThisTime: parser.listings ? parser.listings.length : 0,
+                        savedData: savedData
+                    };
                     session.endTime = Date.now();
                     session.progress = 100;
-                    console.log(`✅ Сессия ${sessionId} завершена: ${(parser.listings || result).length} объявлений`);
+                    console.log(`✅ Сессия ${sessionId} завершена:`);
+                    console.log(`   - Спарсено: ${(parser.listings || result).length} объявлений`);
+                    console.log(`   - Показываю из БД: ${allListings.length} объявлений`);
                 }
             }
         })
@@ -300,6 +318,15 @@ app.get('/api/sessions/:sessionId/data', (req, res) => {
         count: session.listings.length,
         listings: session.listings
     };
+
+    // Добавляем информацию о БД если есть
+    if (session.dbInfo) {
+        response.database = {
+            totalListingsInDB: session.dbInfo.totalInDB,
+            parsedThisTime: session.dbInfo.parsedThisTime,
+            saveResult: session.dbInfo.savedData
+        };
+    }
 
     // Если это дифференциальный парсинг, добавляем информацию об изменениях цен
     if (session.isDifferential && session.priceChanges) {
