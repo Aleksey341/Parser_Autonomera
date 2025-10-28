@@ -113,6 +113,13 @@ async function startParsing() {
 async function monitorParsing() {
     if (!currentSessionId) return;
 
+    // Очищаем старый интервал если он существует
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        console.log('🔄 Старый интервал мониторинга очищен');
+    }
+
+    // Создаём новый интервал для мониторинга статуса
     statusCheckInterval = setInterval(async () => {
         try {
             const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/status`);
@@ -131,6 +138,7 @@ async function monitorParsing() {
 
             if (status.status === 'completed') {
                 clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
                 stopParsingTimer();
                 // false - заменяем данные (полная загрузка готова)
                 await loadResults(false);
@@ -145,6 +153,7 @@ async function monitorParsing() {
                 document.getElementById('spinner').style.display = 'none';
             } else if (status.status === 'paused') {
                 clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
                 stopParsingTimer();
                 // Передаем true для добавления новых данных к существующим (продолжение батча)
                 await loadResults(true);
@@ -159,6 +168,7 @@ async function monitorParsing() {
                 document.getElementById('spinner').style.display = 'none';
             } else if (status.status === 'stopped') {
                 clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
                 stopParsingTimer();
                 // true - добавляем к существующим (пользователь остановил, может возобновить)
                 await loadResults(true);
@@ -171,6 +181,7 @@ async function monitorParsing() {
                 document.getElementById('spinner').style.display = 'none';
             } else if (status.status === 'error') {
                 clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
                 stopParsingTimer();
                 showMessage('error', `❌ Ошибка парсинга: ${status.error}`);
                 document.getElementById('startBtn').disabled = false;
@@ -186,6 +197,8 @@ async function monitorParsing() {
             console.error('Ошибка при проверке статуса:', error);
         }
     }, 500);
+
+    console.log('✅ Мониторинг парсинга запущен (интервал 500ms)');
 }
 
 async function loadResults(isAppend = false) {
