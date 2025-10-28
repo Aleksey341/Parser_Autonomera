@@ -34,7 +34,7 @@ class ParserDBAdapter {
   }
 
   /**
-   * Сохраняет объявления в БД
+   * Сохраняет объявления в БД с полным перезаписыванием
    */
   async saveListingsToDB() {
     if (!this.parser.listings || this.parser.listings.length === 0) {
@@ -87,6 +87,64 @@ class ParserDBAdapter {
       newItems: this.newItemsCount,
       updatedItems: this.updatedItemsCount,
       total: this.parser.listings.length
+    };
+  }
+
+  /**
+   * Сохраняет объявления в БД с дифференциальным сравнением
+   * Возвращает только новые объявления и изменения цен
+   */
+  async saveDifferentialListingsToDB() {
+    if (!this.parser.listings || this.parser.listings.length === 0) {
+      console.log('⚠️  Нет объявлений для сохранения');
+      return {
+        newItems: 0,
+        updatedItems: 0,
+        unchangedItems: 0,
+        newListings: [],
+        priceChanges: []
+      };
+    }
+
+    console.log(`🔄 Выполняю дифференциальное сравнение ${this.parser.listings.length} объявлений...`);
+
+    // Получаем дифференциальные данные
+    const diffResult = await db.getDifferentialListings(
+      this.parser.listings.map(l => ({
+        number: l.number,
+        price: l.price || 0,
+        region: l.region || '',
+        status: l.status || 'active',
+        datePosted: l.datePosted ? this.normalizeDate(l.datePosted) : null,
+        dateUpdated: l.dateUpdated ? this.normalizeDate(l.dateUpdated) : null,
+        seller: l.seller || 'unknown',
+        url: l.url || ''
+      })),
+      this.sessionId
+    );
+
+    // Сохраняем новые объявления
+    console.log(`💾 Сохраняю ${diffResult.newListings.length} новых объявлений...`);
+    for (const listing of diffResult.newListings) {
+      await db.insertOrUpdateListing(listing);
+      this.newItemsCount++;
+    }
+
+    // Обновляем цены для измененных объявлений
+    this.updatedItemsCount = diffResult.statistics.updatedCount;
+
+    console.log(`✅ Дифференциальное сравнение завершено:`);
+    console.log(`   - Новых объявлений: ${this.newItemsCount}`);
+    console.log(`   - Изменены цены: ${this.updatedItemsCount}`);
+    console.log(`   - Без изменений: ${diffResult.statistics.unchangedCount}`);
+
+    return {
+      newItems: this.newItemsCount,
+      updatedItems: this.updatedItemsCount,
+      unchangedItems: diffResult.statistics.unchangedCount,
+      newListings: diffResult.newListings,
+      priceChanges: diffResult.priceChanges,
+      statistics: diffResult.statistics
     };
   }
 
@@ -154,7 +212,7 @@ class ParserDBAdapter {
 }
 
 /**
- * Функция для выполнения парсинга с сохранением в БД
+ * Функция для выполнения парсинга с сохранением в БД (полное обновление)
  */
 async function runParserWithDB(parserInstance, sessionId = null) {
   const adapter = new ParserDBAdapter(parserInstance);
@@ -184,6 +242,55 @@ async function runParserWithDB(parserInstance, sessionId = null) {
     };
   } catch (error) {
     console.error('❌ Ошибка при парсинге:', error.message);
+    await adapter.completeSession(error);
+
+    return {
+      success: false,
+      sessionId: adapter.sessionId,
+      error: error.message
+    };
+  } finally {
+    // Закрываем браузер
+    await parserInstance.closeBrowser();
+  }
+}
+
+/**
+ * Функция для выполнения дифференциального парсинга (только новые объявления)
+ */
+async function runDifferentialParserWithDB(parserInstance, sessionId = null) {
+  const adapter = new ParserDBAdapter(parserInstance);
+
+  try {
+    // Инициализируем браузер
+    await parserInstance.initBrowser();
+
+    // Создаем сессию
+    await adapter.startSession({ sessionId });
+
+    // Запускаем парсинг
+    console.log('🚀 Начинаем дифференциальный парсинг...');
+    const result = await parserInstance.parse();
+
+    // Сохраняем результаты в БД с дифференциальным сравнением
+    const diffResult = await adapter.saveDifferentialListingsToDB();
+
+    // Завершаем сессию
+    await adapter.completeSession();
+
+    return {
+      success: true,
+      sessionId: adapter.sessionId,
+      totalParsed: parserInstance.listings.length,
+      newItems: diffResult.newItems,
+      updatedItems: diffResult.updatedItems,
+      unchangedItems: diffResult.unchangedItems,
+      newListings: diffResult.newListings,
+      priceChanges: diffResult.priceChanges,
+      ...result
+    };
+  } catch (error) {
+    console.error('❌ Ошибка при дифференциальном парсинге:', error.message);
     await adapter.completeSession(error);
 
     return {
@@ -240,5 +347,6 @@ async function scheduledParseTask(parserOptions = {}) {
 module.exports = {
   ParserDBAdapter,
   runParserWithDB,
+  runDifferentialParserWithDB,
   scheduledParseTask
 };

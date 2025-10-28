@@ -300,4 +300,115 @@ router.delete('/data/old', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/price-history/:number - получить историю изменений цен для номера
+ */
+router.get('/price-history/:number', async (req, res) => {
+  try {
+    const { number } = req.params;
+    const { limit = 10 } = req.query;
+
+    const history = await db.getPriceHistory(number, parseInt(limit));
+
+    if (!history || history.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `История цен для номера ${number} не найдена`
+      });
+    }
+
+    res.json({
+      success: true,
+      number: number,
+      count: history.length,
+      history: history
+    });
+  } catch (error) {
+    console.error('Ошибка при получении истории цен:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/price-changes - получить недавние изменения цен
+ */
+router.get('/price-changes', async (req, res) => {
+  try {
+    const { days = 7, limit = 1000 } = req.query;
+
+    const changes = await db.getRecentPriceChanges(parseInt(days), parseInt(limit));
+
+    res.json({
+      success: true,
+      period: `${days} days`,
+      count: changes.length,
+      changes: changes
+    });
+  } catch (error) {
+    console.error('Ошибка при получении изменений цен:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/price-changes/stats - получить статистику по изменениям цен
+ */
+router.get('/price-changes/stats', async (req, res) => {
+  try {
+    const { days = 7 } = req.query;
+
+    const stats = await db.getPriceChangeStats(parseInt(days));
+
+    if (!stats) {
+      return res.status(400).json({
+        success: false,
+        error: 'Невозможно получить статистику цен'
+      });
+    }
+
+    res.json({
+      success: true,
+      period: `${days} days`,
+      statistics: stats
+    });
+  } catch (error) {
+    console.error('Ошибка при получении статистики цен:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/all-numbers - получить все номера из БД
+ */
+router.get('/all-numbers', async (req, res) => {
+  try {
+    const numbers = await db.getExistingNumbers();
+    const numbersArray = Object.entries(numbers).map(([number, price]) => ({
+      number,
+      currentPrice: price
+    }));
+
+    res.json({
+      success: true,
+      count: numbersArray.length,
+      numbers: numbersArray
+    });
+  } catch (error) {
+    console.error('Ошибка при получении номеров:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

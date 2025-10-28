@@ -275,6 +275,199 @@ async function clearAllData() {
   }
 }
 
+/**
+ * Получает список всех существующих номеров из БД
+ */
+async function getExistingNumbers() {
+  const connection = await pool.getConnection();
+  try {
+    const [rows] = await connection.execute(`
+      SELECT number, price FROM listings WHERE status = 'active'
+    `);
+    const numbers = {};
+    rows.forEach(row => {
+      numbers[row.number] = row.price;
+    });
+    return numbers;
+  } catch (error) {
+    console.error('Ошибка при получении существующих номеров:', error.message);
+    return {};
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Проверяет наличие номера в БД и возвращает старую цену
+ */
+async function getListingByNumber(number) {
+  const connection = await pool.getConnection();
+  try {
+    const [rows] = await connection.execute(
+      'SELECT * FROM listings WHERE number = ?',
+      [number]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Ошибка при получении объявления:', error.message);
+    return null;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Записывает изменение цены в историю
+ */
+async function recordPriceChange(number, oldPrice, newPrice, sessionId) {
+  const connection = await pool.getConnection();
+  try {
+    const priceDelta = newPrice - oldPrice;
+    const changeDirection = priceDelta > 0 ? 'increased' : priceDelta < 0 ? 'decreased' : 'unchanged';
+
+    await connection.execute(`
+      INSERT INTO price_history (number, old_price, new_price, price_delta, change_direction, session_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [number, oldPrice, newPrice, priceDelta, changeDirection, sessionId]);
+
+    return {
+      number,
+      oldPrice,
+      newPrice,
+      priceDelta,
+      changeDirection
+    };
+  } catch (error) {
+    console.error('Ошибка при записи изменения цены:', error.message);
+    return null;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Получает историю изменений цен для номера
+ */
+async function getPriceHistory(number, limit = 10) {
+  const connection = await pool.getConnection();
+  try {
+    const [rows] = await connection.execute(`
+      SELECT * FROM price_history
+      WHERE number = ?
+      ORDER BY updated_at DESC
+      LIMIT ?
+    `, [number, limit]);
+    return rows;
+  } catch (error) {
+    console.error('Ошибка при получении истории цен:', error.message);
+    return [];
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Получает все изменения цен за последние N дней
+ */
+async function getRecentPriceChanges(days = 7, limit = 1000) {
+  const connection = await pool.getConnection();
+  try {
+    const [rows] = await connection.execute(`
+      SELECT * FROM price_history
+      WHERE updated_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+      ORDER BY updated_at DESC
+      LIMIT ?
+    `, [days, limit]);
+    return rows;
+  } catch (error) {
+    console.error('Ошибка при получении недавних изменений цен:', error.message);
+    return [];
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Сравнивает новые данные с существующими и возвращает только новые/измененные
+ */
+async function getDifferentialListings(newListings, sessionId) {
+  const existingNumbers = await getExistingNumbers();
+  const newListingsArray = [];
+  const priceChanges = [];
+  let newCount = 0;
+  let updatedCount = 0;
+
+  for (const listing of newListings) {
+    const existingPrice = existingNumbers[listing.number];
+
+    if (existingPrice === undefined) {
+      // Новое объявление
+      newListingsArray.push(listing);
+      newCount++;
+    } else if (listing.price !== existingPrice) {
+      // Цена изменилась
+      const priceChange = await recordPriceChange(
+        listing.number,
+        existingPrice,
+        listing.price,
+        sessionId
+      );
+      if (priceChange) {
+        priceChanges.push(priceChange);
+      }
+      updatedCount++;
+    }
+  }
+
+  return {
+    newListings: newListingsArray,
+    priceChanges: priceChanges,
+    statistics: {
+      newCount: newCount,
+      updatedCount: updatedCount,
+      unchangedCount: newListings.length - newCount - updatedCount,
+      totalProcessed: newListings.length
+    }
+  };
+}
+
+/**
+ * Получает статистику по изменениям цен
+ */
+async function getPriceChangeStats(days = 7) {
+  const connection = await pool.getConnection();
+  try {
+    const [rows] = await connection.execute(`
+      SELECT
+        COUNT(*) as total_changes,
+        SUM(CASE WHEN change_direction = 'increased' THEN 1 ELSE 0 END) as increased,
+        SUM(CASE WHEN change_direction = 'decreased' THEN 1 ELSE 0 END) as decreased,
+        SUM(CASE WHEN change_direction = 'unchanged' THEN 1 ELSE 0 END) as unchanged,
+        ROUND(AVG(price_delta), 2) as avg_delta,
+        MIN(price_delta) as min_delta,
+        MAX(price_delta) as max_delta
+      FROM price_history
+      WHERE updated_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    `, [days]);
+
+    const stats = rows[0];
+    return {
+      totalChanges: parseInt(stats.total_changes || 0),
+      increased: parseInt(stats.increased || 0),
+      decreased: parseInt(stats.decreased || 0),
+      unchanged: parseInt(stats.unchanged || 0),
+      avgDelta: parseFloat(stats.avg_delta || 0),
+      minDelta: parseInt(stats.min_delta || 0),
+      maxDelta: parseInt(stats.max_delta || 0)
+    };
+  } catch (error) {
+    console.error('Ошибка при получении статистики цен:', error.message);
+    return null;
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   initializeDatabase,
   pool: () => pool,
@@ -284,5 +477,12 @@ module.exports = {
   createParseSession,
   updateParseSession,
   deleteOldData,
-  clearAllData
+  clearAllData,
+  getExistingNumbers,
+  getListingByNumber,
+  recordPriceChange,
+  getPriceHistory,
+  getRecentPriceChanges,
+  getDifferentialListings,
+  getPriceChangeStats
 };

@@ -11,7 +11,7 @@ const db = process.env.DATABASE_URL
   ? require('./db-pg')
   : require('./db');
 
-const { runParserWithDB, ParserDBAdapter } = require('./parser-db');
+const { runParserWithDB, runDifferentialParserWithDB, ParserDBAdapter } = require('./parser-db');
 const { getScheduler } = require('./scheduler');
 const apiDbRoutes = require('./api-db-routes');
 require('dotenv').config();
@@ -144,6 +144,81 @@ app.post('/api/parse', async (req, res) => {
 });
 
 /**
+ * POST /api/parse-differential - начало дифференциального парсинга
+ * Сравнивает с существующими данными и возвращает только новые объявления и изменения цен
+ */
+app.post('/api/parse-differential', async (req, res) => {
+    const {
+        minPrice = 0,
+        maxPrice = Infinity,
+        region = null,
+        maxPages = 200,
+        delayMs = 100,
+        concurrentRequests = 500,
+        requestDelayMs = 50
+    } = req.body;
+
+    const sessionId = generateSessionId();
+
+    console.log(`\n🔄 Новая сессия дифференциального парсинга: ${sessionId}`);
+    console.log(`📊 Параметры: цена ${minPrice}-${maxPrice}, регион: ${region}`);
+
+    const parser = new AutonomeraParser({
+        minPrice,
+        maxPrice,
+        region,
+        maxPages,
+        delayMs,
+        concurrentRequests,
+        requestDelayMs
+    });
+
+    // Сохраняем парсер в сессию
+    sessions.set(sessionId, {
+        parser,
+        status: 'running',
+        progress: 0,
+        startTime: Date.now(),
+        error: null,
+        isDifferential: true
+    });
+
+    res.json({
+        sessionId,
+        status: 'started',
+        message: 'Дифференциальный парсинг начался'
+    });
+
+    // Запускаем дифференциальный парсинг асинхронно
+    runDifferentialParserWithDB(parser, sessionId)
+        .then((result) => {
+            const session = sessions.get(sessionId);
+            if (session) {
+                session.status = 'completed';
+                session.listings = result.newListings || [];
+                session.priceChanges = result.priceChanges || [];
+                session.diffResult = result;
+                session.endTime = Date.now();
+                session.progress = 100;
+                console.log(`✅ Дифференциальная сессия ${sessionId} завершена:`);
+                console.log(`   - Всего спарсено: ${result.totalParsed}`);
+                console.log(`   - Новых объявлений: ${result.newItems}`);
+                console.log(`   - Изменены цены: ${result.updatedItems}`);
+                console.log(`   - Без изменений: ${result.unchangedItems}`);
+            }
+        })
+        .catch((error) => {
+            const session = sessions.get(sessionId);
+            if (session) {
+                session.status = 'error';
+                session.error = error.message;
+                session.endTime = Date.now();
+            }
+            console.error(`❌ Ошибка в дифференциальной сессии ${sessionId}:`, error.message);
+        });
+});
+
+/**
  * GET /api/sessions/:sessionId/status - получение статуса парсинга
  */
 app.get('/api/sessions/:sessionId/status', (req, res) => {
@@ -163,6 +238,7 @@ app.get('/api/sessions/:sessionId/status', (req, res) => {
     // Получаем список объявлений из сессии или напрямую из парсера во время работы
     const listings = session.listings || (session.parser && session.parser.listings) || [];
     const listingsCount = listings.length;
+
     const response = {
         sessionId,
         status: session.status,
@@ -170,8 +246,20 @@ app.get('/api/sessions/:sessionId/status', (req, res) => {
         listingsCount: listingsCount,
         startTime: new Date(session.startTime).toISOString(),
         duration: `${duration}s`,
-        error: session.error
+        error: session.error,
+        isDifferential: session.isDifferential || false
     };
+
+    // Если это дифференциальный парсинг, добавляем дополнительную информацию
+    if (session.isDifferential && session.diffResult) {
+        response.differential = {
+            totalParsed: session.diffResult.totalParsed,
+            newItems: session.diffResult.newItems,
+            updatedItems: session.diffResult.updatedItems,
+            unchangedItems: session.diffResult.unchangedItems,
+            priceChangesCount: (session.priceChanges || []).length
+        };
+    }
 
     // Добавляем информацию о батчах если парсинг приостановлен
     if (session.status === 'paused') {
@@ -206,11 +294,30 @@ app.get('/api/sessions/:sessionId/data', (req, res) => {
         });
     }
 
-    res.json({
+    const response = {
         sessionId,
+        isDifferential: session.isDifferential || false,
         count: session.listings.length,
         listings: session.listings
-    });
+    };
+
+    // Если это дифференциальный парсинг, добавляем информацию об изменениях цен
+    if (session.isDifferential && session.priceChanges) {
+        response.priceChanges = session.priceChanges;
+        response.priceChangesCount = session.priceChanges.length;
+
+        // Вычисляем статистику по изменениям цен
+        const increased = session.priceChanges.filter(p => p.changeDirection === 'increased').length;
+        const decreased = session.priceChanges.filter(p => p.changeDirection === 'decreased').length;
+        response.priceChangesSummary = {
+            total: session.priceChanges.length,
+            increased,
+            decreased,
+            totalPriceDelta: session.priceChanges.reduce((sum, p) => sum + (p.priceDelta || 0), 0)
+        };
+    }
+
+    res.json(response);
 });
 
 /**
