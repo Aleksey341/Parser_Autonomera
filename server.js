@@ -94,6 +94,7 @@ app.post('/api/parse', async (req, res) => {
 
     console.log(`\n🚀 Новая сессия парсинга: ${sessionId}`);
     console.log(`📊 Параметры: цена ${minPrice}-${maxPrice}, регион: ${region}`);
+    console.log(`⚡ DEBUG MODE VALUE: "${mode}" (type: ${typeof mode})`);
     console.log(`⚡ Режим: ${mode === 'demo' ? 'ДЕМО (загрузка готовых данных)' : 'LIVE (реальный парсинг)'}`);
 
     const parser = new AutonomeraParser({
