@@ -3,8 +3,19 @@
  * Этот файл содержит функции для интеграции парсера с MySQL БД
  */
 
-const db = require('./db');
 require('dotenv').config();
+
+// Выбираем модуль БД в порядке приоритета:
+// 1. PostgreSQL если DATABASE_URL установлен
+// 2. SQLite как fallback для локальной разработки
+let db;
+if (process.env.DATABASE_URL) {
+  db = require('./db-pg');
+} else if (process.env.DB_TYPE === 'sqlite') {
+  db = require('./db-sqlite');
+} else {
+  db = require('./db');  // MySQL по умолчанию
+}
 
 class ParserDBAdapter {
   constructor(parser) {
