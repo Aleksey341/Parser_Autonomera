@@ -188,8 +188,8 @@ class AutonomeraParser {
             try {
                 console.log('🔄 Перезагружаем страницу для продолжения батча...');
                 await this.page.reload({ waitUntil: 'domcontentloaded', timeout: this.timeout });
-                await this.delay(300); // Ждём загрузки jQuery и объявлений
-                console.log('✅ Страница перезагружена');
+                await this.delay(500); // Ждём загрузки jQuery, JavaScript и объявлений (500ms оптимально)
+                console.log('✅ Страница перезагружена и готова к парсингу');
             } catch (reloadError) {
                 console.warn('⚠️ Ошибка при перезагрузке страницы, продолжаем с текущей:', reloadError.message);
             }
@@ -810,10 +810,10 @@ class AutonomeraParser {
             advertIdsToLoad.push(advertId);
         }
 
-        // Теперь загружаем детали всех объявлений параллельно (по 1000 одновременно)
+        // Теперь загружаем детали всех объявлений параллельно (по 500 одновременно)
         if (advertIdsToLoad.length > 0) {
-            console.log(`📥 Загружаю детали для ${advertIdsToLoad.length} объявлений (1000 параллельно)...`);
-            const detailsMap = await this.getMultipleListingDetails(advertIdsToLoad, this.baseUrl, 1000);
+            console.log(`📥 Загружаю детали для ${advertIdsToLoad.length} объявлений (500 параллельно)...`);
+            const detailsMap = await this.getMultipleListingDetails(advertIdsToLoad, this.baseUrl, 500);
 
             // Добавляем объявления в список с загруженными датами
             for (const listingInfo of listings) {
