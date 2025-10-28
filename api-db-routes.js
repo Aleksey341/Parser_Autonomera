@@ -1,13 +1,25 @@
 /**
  * API маршруты для работы с БД
- * Эти маршруты работают с данными из MySQL БД вместо памяти
+ * Эти маршруты работают с данными из БД (MySQL или PostgreSQL)
  */
 
+require('dotenv').config();
 const express = require('express');
 const { stringify } = require('csv-stringify/sync');
 const XLSX = require('xlsx');
-const db = require('./db');
 const iconv = require('iconv-lite');
+
+// Выбираем модуль БД в порядке приоритета:
+// 1. PostgreSQL если DATABASE_URL установлен
+// 2. SQLite как fallback для локальной разработки
+let db;
+if (process.env.DATABASE_URL) {
+  db = require('./db-pg');
+} else if (process.env.DB_TYPE === 'sqlite') {
+  db = require('./db-sqlite');
+} else {
+  db = require('./db');  // MySQL по умолчанию
+}
 
 const router = express.Router();
 

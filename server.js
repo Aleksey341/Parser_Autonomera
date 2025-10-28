@@ -1,3 +1,6 @@
+// ВАЖНО: загрузить .env ПЕРЕД всем остальным!
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -6,15 +9,21 @@ const { stringify } = require('csv-stringify/sync');
 const XLSX = require('xlsx');
 const AutonomeraParser = require('./parser');
 
-// Используем PostgreSQL модуль если DATABASE_URL определена, иначе MySQL
-const db = process.env.DATABASE_URL
-  ? require('./db-pg')
-  : require('./db');
+// Выбираем модуль БД в порядке приоритета:
+// 1. PostgreSQL если DATABASE_URL установлен
+// 2. SQLite как fallback для локальной разработки
+let db;
+if (process.env.DATABASE_URL) {
+  db = require('./db-pg');
+} else if (process.env.DB_TYPE === 'sqlite') {
+  db = require('./db-sqlite');
+} else {
+  db = require('./db');  // MySQL по умолчанию
+}
 
 const { runParserWithDB, runDifferentialParserWithDB, ParserDBAdapter } = require('./parser-db');
 const { getScheduler } = require('./scheduler');
 const apiDbRoutes = require('./api-db-routes');
-require('dotenv').config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
