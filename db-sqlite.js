@@ -253,6 +253,95 @@ async function saveListingsToDB(listings, sessionId) {
 }
 
 /**
+ * Создать или получить сессию парсинга
+ */
+async function createParseSession(sessionId, params = {}) {
+  try {
+    await run(
+      `INSERT INTO parse_sessions (id, status) VALUES (?, 'running')`,
+      [sessionId]
+    );
+    console.log(`✅ Сессия парсинга создана: ${sessionId}`);
+    return sessionId;
+  } catch (error) {
+    if (error.message.includes('UNIQUE')) {
+      console.log(`⚠️ Сессия ${sessionId} уже существует`);
+      return sessionId;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Завершить сессию парсинга
+ */
+async function completeParseSession(sessionId, stats = {}) {
+  try {
+    await run(
+      `UPDATE parse_sessions SET
+        status = 'completed',
+        completed_at = CURRENT_TIMESTAMP,
+        total_items = ?,
+        new_items = ?,
+        updated_items = ?
+      WHERE id = ?`,
+      [stats.total || 0, stats.newItems || 0, stats.updatedItems || 0, sessionId]
+    );
+  } catch (error) {
+    console.error('Ошибка при завершении сессии:', error.message);
+  }
+}
+
+/**
+ * Получить дифференциальные объявления (новые и измененные)
+ */
+async function getDifferentialListings(currentListings, sessionId) {
+  try {
+    const existingNumbers = await all(
+      'SELECT number, price FROM listings ORDER BY number'
+    );
+
+    const existingMap = new Map(existingNumbers.map(l => [l.number, l.price]));
+    const newListings = [];
+    let unchangedCount = 0;
+    let updatedCount = 0;
+
+    for (const listing of currentListings) {
+      if (!existingMap.has(listing.number)) {
+        newListings.push(listing);
+      } else {
+        const oldPrice = existingMap.get(listing.number);
+        if (oldPrice !== listing.price) {
+          updatedCount++;
+        } else {
+          unchangedCount++;
+        }
+      }
+    }
+
+    return {
+      newListings,
+      statistics: {
+        updatedCount,
+        unchangedCount,
+        totalCount: currentListings.length
+      }
+    };
+  } catch (error) {
+    console.error('Ошибка при получении дифференциальных данных:', error.message);
+    // Если ошибка, считаем все новыми
+    return {
+      newListings: currentListings,
+      statistics: {
+        updatedCount: 0,
+        unchangedCount: 0,
+        totalCount: currentListings.length
+      }
+    };
+  }
+}
+
+/**
  * Закрытие БД
  */
 async function closeDatabase() {
@@ -270,5 +359,8 @@ module.exports = {
   getListings,
   getListingsStats,
   saveListingsToDB,
+  createParseSession,
+  completeParseSession,
+  getDifferentialListings,
   closeDatabase
 };

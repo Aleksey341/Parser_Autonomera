@@ -1,9 +1,13 @@
 /**
  * Расширение для парсера с поддержкой сохранения в БД
  * Этот файл содержит функции для интеграции парсера с MySQL БД
+ * С поддержкой обработки ошибок и fallback хранилища
  */
 
 require('dotenv').config();
+
+const fs = require('fs');
+const path = require('path');
 
 // Выбираем модуль БД в порядке приоритета:
 // 1. PostgreSQL если DATABASE_URL установлен
@@ -17,35 +21,117 @@ if (process.env.DATABASE_URL) {
   db = require('./db');  // MySQL по умолчанию
 }
 
+// Параметры retry
+const DB_RETRY_ATTEMPTS = 3;
+const DB_RETRY_DELAY_MS = 1000;
+
+// Путь для сохранения данных при недоступности БД
+const OFFLINE_STORAGE_FILE = path.join(__dirname, '.parser_offline_cache.json');
+
+/**
+ * Retry функция для операций с БД
+ */
+async function withRetry(operation, operationName = 'DB operation') {
+  let lastError;
+
+  for (let attempt = 1; attempt <= DB_RETRY_ATTEMPTS; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      console.warn(`⚠️ Попытка ${attempt}/${DB_RETRY_ATTEMPTS} не удалась: ${operationName}`);
+      console.warn(`   Причина: ${error.message}`);
+
+      if (attempt < DB_RETRY_ATTEMPTS) {
+        const delay = DB_RETRY_DELAY_MS * attempt;
+        console.log(`⏳ Ожидание ${delay}ms перед следующей попыткой...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  console.error(`❌ Не удалось выполнить ${operationName} после ${DB_RETRY_ATTEMPTS} попыток`);
+  throw lastError;
+}
+
+/**
+ * Сохранить данные в локальное хранилище для offline режима
+ */
+function saveToOfflineStorage(data) {
+  try {
+    const storageData = {
+      timestamp: new Date().toISOString(),
+      listings: data
+    };
+    fs.writeFileSync(OFFLINE_STORAGE_FILE, JSON.stringify(storageData, null, 2));
+    console.log(`💾 Данные сохранены в локальное хранилище: ${OFFLINE_STORAGE_FILE}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Ошибка при сохранении в локальное хранилище: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Загрузить данные из локального хранилища
+ */
+function loadFromOfflineStorage() {
+  try {
+    if (!fs.existsSync(OFFLINE_STORAGE_FILE)) {
+      return null;
+    }
+    const data = fs.readFileSync(OFFLINE_STORAGE_FILE, 'utf8');
+    const parsed = JSON.parse(data);
+    console.log(`📂 Данные загружены из локального хранилища (${parsed.timestamp})`);
+    return parsed.listings;
+  } catch (error) {
+    console.error(`❌ Ошибка при загрузке из локального хранилища: ${error.message}`);
+    return null;
+  }
+}
+
 class ParserDBAdapter {
   constructor(parser) {
     this.parser = parser;
     this.sessionId = null;
     this.newItemsCount = 0;
     this.updatedItemsCount = 0;
+    this.dbAvailable = true; // Флаг доступности БД
+    this.savedToOfflineStorage = false; // Флаг сохранения в offline хранилище
   }
 
   /**
-   * Инициализирует сессию парсинга в БД
+   * Инициализирует сессию парсинга в БД с retry
    */
   async startSession(params = {}) {
     const { v4: uuidv4 } = require('uuid') || { v4: () => `${Date.now()}-${Math.random()}` };
     this.sessionId = params.sessionId || `parse-${Date.now()}`;
 
-    await db.createParseSession(this.sessionId, {
-      minPrice: this.parser.minPrice,
-      maxPrice: this.parser.maxPrice,
-      maxPages: this.parser.maxPages,
-      region: this.parser.region,
-      ...params
-    });
+    try {
+      await withRetry(
+        () => db.createParseSession(this.sessionId, {
+          minPrice: this.parser.minPrice,
+          maxPrice: this.parser.maxPrice,
+          maxPages: this.parser.maxPages,
+          region: this.parser.region,
+          ...params
+        }),
+        'createParseSession'
+      );
 
-    console.log(`📝 Сессия парсинга создана: ${this.sessionId}`);
+      this.dbAvailable = true;
+      console.log(`📝 Сессия парсинга создана: ${this.sessionId}`);
+    } catch (error) {
+      this.dbAvailable = false;
+      console.warn(`⚠️ Не удалось создать сессию в БД, работаем в offline режиме`);
+      console.log(`📝 Локальная сессия: ${this.sessionId}`);
+    }
+
     return this.sessionId;
   }
 
   /**
-   * Сохраняет объявления в БД с полным перезаписыванием
+   * Сохраняет объявления в БД с полным перезаписыванием и fallback
    */
   async saveListingsToDB() {
     if (!this.parser.listings || this.parser.listings.length === 0) {
@@ -53,33 +139,74 @@ class ParserDBAdapter {
       return { newItems: 0, updatedItems: 0 };
     }
 
-    console.log(`💾 Сохраняю ${this.parser.listings.length} объявлений в БД...`);
+    console.log(`💾 Сохраняю ${this.parser.listings.length} объявлений...`);
 
     this.newItemsCount = 0;
     this.updatedItemsCount = 0;
 
+    // Если БД недоступна, сохраняем в локальное хранилище
+    if (!this.dbAvailable) {
+      console.log(`⚠️ БД недоступна, сохраняю в локальное хранилище...`);
+      const saved = saveToOfflineStorage(this.parser.listings);
+      if (saved) {
+        this.savedToOfflineStorage = true;
+        return {
+          newItems: this.parser.listings.length,
+          updatedItems: 0,
+          total: this.parser.listings.length,
+          savedLocally: true
+        };
+      }
+      return { newItems: 0, updatedItems: 0, error: 'Не удалось сохранить данные' };
+    }
+
     // Сохраняем объявления батчами по 100
     const batchSize = 100;
+    let dbErrors = 0;
+
     for (let i = 0; i < this.parser.listings.length; i += batchSize) {
       const batch = this.parser.listings.slice(i, i + batchSize);
 
       for (const listing of batch) {
-        const success = await db.insertOrUpdateListing({
-          number: listing.number,
-          price: listing.price || 0,
-          region: listing.region || '',
-          status: listing.status || 'active',
-          datePosted: listing.datePosted ? this.normalizeDate(listing.datePosted) : null,
-          dateUpdated: listing.dateUpdated ? this.normalizeDate(listing.dateUpdated) : null,
-          seller: listing.seller || 'unknown',
-          url: listing.url || ''
-        });
+        try {
+          const result = await withRetry(
+            () => db.insertOrUpdateListing({
+              number: listing.number,
+              price: listing.price || 0,
+              region: listing.region || '',
+              status: listing.status || 'active',
+              datePosted: listing.datePosted ? this.normalizeDate(listing.datePosted) : null,
+              dateUpdated: listing.dateUpdated ? this.normalizeDate(listing.dateUpdated) : null,
+              seller: listing.seller || 'unknown',
+              url: listing.url || ''
+            }),
+            `insertOrUpdateListing ${listing.number}`
+          );
 
-        if (success) {
-          if (i === 0) {
-            this.newItemsCount++;
-          } else {
-            this.updatedItemsCount++;
+          if (result && result.success) {
+            if (result.action === 'inserted') {
+              this.newItemsCount++;
+            } else {
+              this.updatedItemsCount++;
+            }
+          }
+        } catch (error) {
+          dbErrors++;
+          console.warn(`⚠️ Ошибка при сохранении ${listing.number}: ${error.message}`);
+
+          // Если слишком много ошибок, переходим в offline режим
+          if (dbErrors > 5) {
+            console.error(`❌ Слишком много ошибок БД, переходим в offline режим`);
+            this.dbAvailable = false;
+            saveToOfflineStorage(this.parser.listings);
+            this.savedToOfflineStorage = true;
+            return {
+              newItems: this.newItemsCount,
+              updatedItems: this.updatedItemsCount,
+              total: this.parser.listings.length,
+              savedLocally: true,
+              warning: 'Данные сохранены локально из-за ошибок БД'
+            };
           }
         }
       }
@@ -97,7 +224,9 @@ class ParserDBAdapter {
     return {
       newItems: this.newItemsCount,
       updatedItems: this.updatedItemsCount,
-      total: this.parser.listings.length
+      total: this.parser.listings.length,
+      savedLocally: false,
+      dbAvailable: this.dbAvailable
     };
   }
 
@@ -359,5 +488,8 @@ module.exports = {
   ParserDBAdapter,
   runParserWithDB,
   runDifferentialParserWithDB,
-  scheduledParseTask
+  scheduledParseTask,
+  saveToOfflineStorage,
+  loadFromOfflineStorage,
+  withRetry
 };

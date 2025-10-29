@@ -21,7 +21,7 @@ if (process.env.DATABASE_URL) {
   db = require('./db');  // MySQL по умолчанию
 }
 
-const { runParserWithDB, runDifferentialParserWithDB, ParserDBAdapter } = require('./parser-db');
+const { runParserWithDB, runDifferentialParserWithDB, ParserDBAdapter, loadFromOfflineStorage } = require('./parser-db');
 const { getScheduler } = require('./scheduler');
 const apiDbRoutes = require('./api-db-routes');
 
@@ -148,29 +148,54 @@ app.post('/api/parse', async (req, res) => {
                 result = await parser.parse();
             }
 
-            // Сохраняем в БД
+            // Сохраняем в БД (с fallback на локальное хранилище)
             const savedData = await runParserWithDB(parser, sessionId);
 
-            // Загружаем ВСЕ данные из БД для показа пользователю
-            console.log(`📥 Загружаю все объявления из БД...`);
-            const allListings = await db.getListings({
-                minPrice: minPrice === 0 ? 0 : minPrice,
-                maxPrice: maxPrice === Infinity ? 999999999 : maxPrice,
-                limit: 100000 // получить все
-            });
+            let allListings = [];
+            let dbAvailable = true;
+
+            // Пытаемся загрузить из БД, если БД недоступна - загружаем локальные данные
+            try {
+                console.log(`📥 Загружаю объявления из БД...`);
+                allListings = await db.getListings({
+                    minPrice: minPrice === 0 ? 0 : minPrice,
+                    maxPrice: maxPrice === Infinity ? 999999999 : maxPrice,
+                    limit: 100000 // получить все
+                });
+            } catch (dbError) {
+                console.warn(`⚠️ Ошибка загрузки из БД: ${dbError.message}`);
+                dbAvailable = false;
+
+                // Пытаемся загрузить из локального хранилища
+                const offlineData = loadFromOfflineStorage();
+                if (offlineData) {
+                    console.log(`📂 Использую данные из локального хранилища`);
+                    allListings = offlineData;
+                } else if (parser.listings) {
+                    console.log(`📋 Использую спарсенные данные`);
+                    allListings = parser.listings;
+                }
+            }
 
             session.status = 'completed';
-            session.listings = allListings; // ВСЕ данные из БД!
+            session.listings = allListings;
             session.dbInfo = {
                 totalInDB: allListings.length,
                 parsedThisTime: parser.listings ? parser.listings.length : 0,
-                savedData: savedData
+                savedData: savedData,
+                dbAvailable: dbAvailable,
+                savedLocally: savedData?.savedLocally || false
             };
             session.endTime = Date.now();
             session.progress = 100;
+
             console.log(`✅ Сессия ${sessionId} завершена:`);
             console.log(`   - Спарсено: ${(parser.listings || result).length} объявлений`);
-            console.log(`   - Показываю из БД: ${allListings.length} объявлений`);
+            console.log(`   - Всего данных: ${allListings.length} объявлений`);
+            console.log(`   - БД доступна: ${dbAvailable ? 'ДА' : 'НЕТ'}`);
+            if (savedData?.savedLocally) {
+                console.log(`   - Данные сохранены локально`);
+            }
 
         } catch (error) {
             const session = sessions.get(sessionId);
@@ -178,6 +203,18 @@ app.post('/api/parse', async (req, res) => {
                 session.status = 'error';
                 session.error = error.message;
                 session.endTime = Date.now();
+
+                // Пытаемся использовать локальные данные даже при ошибке
+                try {
+                    const offlineData = loadFromOfflineStorage();
+                    if (offlineData) {
+                        console.log(`📂 Использую локальные данные из-за ошибки`);
+                        session.status = 'completed_with_offline_data';
+                        session.listings = offlineData;
+                    }
+                } catch (localError) {
+                    console.error(`❌ Не удалось загрузить локальные данные: ${localError.message}`);
+                }
             }
             console.error(`❌ Ошибка в сессии ${sessionId}:`, error.message);
         }
