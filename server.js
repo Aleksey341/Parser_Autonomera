@@ -1108,9 +1108,9 @@ app.get('/api/db/regions', async (req, res) => {
         SELECT
           region,
           COUNT(*) as count,
-          ROUND(AVG(price)::numeric) as avg_price,
-          MIN(price) as min_price,
-          MAX(price) as max_price
+          ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER))::numeric) as avg_price,
+          MIN(CAST(NULLIF(price, '') AS INTEGER)) as min_price,
+          MAX(CAST(NULLIF(price, '') AS INTEGER)) as max_price
         FROM listings
         WHERE region IS NOT NULL AND region != ''
         GROUP BY region
@@ -1137,9 +1137,9 @@ app.get('/api/db/sellers', async (req, res) => {
         SELECT
           seller,
           COUNT(*) as count,
-          ROUND(AVG(price)::numeric) as avg_price,
-          MIN(price) as min_price,
-          MAX(price) as max_price
+          ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER))::numeric) as avg_price,
+          MIN(CAST(NULLIF(price, '') AS INTEGER)) as min_price,
+          MAX(CAST(NULLIF(price, '') AS INTEGER)) as max_price
         FROM listings
         WHERE seller IS NOT NULL AND seller != ''
         GROUP BY seller
