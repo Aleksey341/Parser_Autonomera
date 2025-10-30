@@ -435,14 +435,14 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
         res.send(JSON.stringify(session.listings, null, 2));
     } else if (format === 'xlsx' || format === 'excel') {
         // Excel XLSX формат с красивым форматированием и добавленным URL
-        const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Регион', 'URL'];
+        const headers = ['Номер', 'Цена', 'Регион', 'Статус', 'Дата размещения', 'Дата поднятия', 'URL'];
         const rows = session.listings.map(item => [
             item.nomer || item.number || '',
             item.price || '',
-            item.datePosted || '',
-            item.dateUpdated || '',
-            item.status || '',
             item.region || '',
+            item.status || '',
+            item.datePosted ? new Date(item.datePosted).toLocaleDateString('ru-RU') : '',
+            item.dateUpdated ? new Date(item.dateUpdated).toLocaleDateString('ru-RU') : '',
             item.url || ''
         ]);
 
@@ -1169,7 +1169,8 @@ app.get('/api/db/export', async (req, res) => {
       'Цена': item.price,
       'Регион': item.region,
       'Статус': item.status,
-      'Дата обновления': item.date_updated ? new Date(item.date_updated).toLocaleDateString('ru-RU') : '-',
+      'Дата размещения': item.date_posted ? new Date(item.date_posted).toLocaleDateString('ru-RU') : '-',
+      'Дата поднятия': item.date_updated ? new Date(item.date_updated).toLocaleDateString('ru-RU') : '-',
       'Изм. цены': item.last_change?.price_delta || '-',
       'Дата изм. цены': item.last_change?.date_updated_site ? new Date(item.last_change.date_updated_site).toLocaleDateString('ru-RU') : '-',
       'URL': item.url
