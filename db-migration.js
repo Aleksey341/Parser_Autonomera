@@ -108,7 +108,47 @@ async function migrateDatabase() {
     `);
     console.log('  ├─ ✓ Таблица listing_history готова');
 
-    // Добавляем индексы
+    // Добавляем недостающие колонки в listing_history (для существующих таблиц)
+    console.log('  ├─ Добавляем колонки в listing_history...');
+    await client.query(`
+      ALTER TABLE listing_history
+      ADD COLUMN IF NOT EXISTS number VARCHAR(15);
+    `);
+    await client.query(`
+      ALTER TABLE listing_history
+      ADD COLUMN IF NOT EXISTS old_price INTEGER;
+    `);
+    await client.query(`
+      ALTER TABLE listing_history
+      ADD COLUMN IF NOT EXISTS new_price INTEGER;
+    `);
+    await client.query(`
+      ALTER TABLE listing_history
+      ADD COLUMN IF NOT EXISTS price_delta INTEGER;
+    `);
+    await client.query(`
+      ALTER TABLE listing_history
+      ADD COLUMN IF NOT EXISTS change_direction VARCHAR(20);
+    `);
+    await client.query(`
+      ALTER TABLE listing_history
+      ADD COLUMN IF NOT EXISTS date_updated_site TIMESTAMP;
+    `);
+    await client.query(`
+      ALTER TABLE listing_history
+      ADD COLUMN IF NOT EXISTS is_price_changed BOOLEAN DEFAULT FALSE;
+    `);
+    await client.query(`
+      ALTER TABLE listing_history
+      ADD COLUMN IF NOT EXISTS recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `);
+    await client.query(`
+      ALTER TABLE listing_history
+      ADD COLUMN IF NOT EXISTS session_id VARCHAR(36);
+    `);
+    console.log('  ├─ ✓ Колонки listing_history добавлены (если не было)');
+
+    // Добавляем индексы (теперь все колонки существуют)
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_listing_history_number ON listing_history(number);
       CREATE INDEX IF NOT EXISTS idx_listing_history_recorded_at ON listing_history(recorded_at);
@@ -132,6 +172,38 @@ async function migrateDatabase() {
     `);
     console.log('  ├─ ✓ Таблица price_history готова');
 
+    // Добавляем недостающие колонки в price_history (для существующих таблиц)
+    console.log('  ├─ Добавляем колонки в price_history...');
+    await client.query(`
+      ALTER TABLE price_history
+      ADD COLUMN IF NOT EXISTS number VARCHAR(15);
+    `);
+    await client.query(`
+      ALTER TABLE price_history
+      ADD COLUMN IF NOT EXISTS old_price INTEGER;
+    `);
+    await client.query(`
+      ALTER TABLE price_history
+      ADD COLUMN IF NOT EXISTS new_price INTEGER;
+    `);
+    await client.query(`
+      ALTER TABLE price_history
+      ADD COLUMN IF NOT EXISTS price_delta INTEGER;
+    `);
+    await client.query(`
+      ALTER TABLE price_history
+      ADD COLUMN IF NOT EXISTS change_direction VARCHAR(20);
+    `);
+    await client.query(`
+      ALTER TABLE price_history
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `);
+    await client.query(`
+      ALTER TABLE price_history
+      ADD COLUMN IF NOT EXISTS session_id VARCHAR(36);
+    `);
+    console.log('  ├─ ✓ Колонки price_history добавлены (если не было)');
+
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_price_history_number ON price_history(number);
       CREATE INDEX IF NOT EXISTS idx_price_history_updated_at ON price_history(updated_at);
@@ -151,7 +223,35 @@ async function migrateDatabase() {
         error TEXT
       );
     `);
-    console.log('  └─ ✓ Таблица cron_logs готова');
+    console.log('  ├─ ✓ Таблица cron_logs готова');
+
+    // Добавляем недостающие колонки в cron_logs (для существующих таблиц)
+    console.log('  ├─ Добавляем колонки в cron_logs...');
+    await client.query(`
+      ALTER TABLE cron_logs
+      ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMP;
+    `);
+    await client.query(`
+      ALTER TABLE cron_logs
+      ADD COLUMN IF NOT EXISTS started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `);
+    await client.query(`
+      ALTER TABLE cron_logs
+      ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;
+    `);
+    await client.query(`
+      ALTER TABLE cron_logs
+      ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'running';
+    `);
+    await client.query(`
+      ALTER TABLE cron_logs
+      ADD COLUMN IF NOT EXISTS items_processed INTEGER DEFAULT 0;
+    `);
+    await client.query(`
+      ALTER TABLE cron_logs
+      ADD COLUMN IF NOT EXISTS error TEXT;
+    `);
+    console.log('  └─ ✓ Колонки cron_logs добавлены (если не было)');
 
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_cron_started_at ON cron_logs(started_at);
