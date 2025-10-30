@@ -577,20 +577,18 @@ async function getListingsWithHistory(filters = {}) {
         l.date_posted,
         l.date_updated,
         l.date_created,
-        l.date_updated_site,
         l.url,
         l.parsed_at,
         l.updated_at,
         (
           SELECT json_build_object(
-            'price_delta', lh.price_delta,
-            'date_updated_site', lh.date_updated_site,
-            'recorded_at', lh.recorded_at,
-            'is_price_changed', lh.is_price_changed
+            'price_delta', ph.price_delta,
+            'date_updated_site', ph.date_updated_site,
+            'recorded_at', ph.recorded_at
           )
-          FROM listing_history lh
-          WHERE lh.nomer = l.nomer
-          ORDER BY lh.recorded_at DESC
+          FROM price_history ph
+          WHERE ph.nomer = l.nomer
+          ORDER BY ph.recorded_at DESC
           LIMIT 1
         ) as last_change
       FROM listings l
