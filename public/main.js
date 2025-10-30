@@ -646,18 +646,50 @@ function filterByRegion(region) {
 }
 
 async function exportData() {
-    if (!currentSessionId || allData.length === 0) {
+    if (allData.length === 0) {
         showMessage('error', 'Нет данных для экспорта');
         return;
     }
 
-    const xlsxUrl = `${serverUrl}/api/sessions/${currentSessionId}/export?format=xlsx`;
-    const link = document.createElement('a');
-    link.href = xlsxUrl;
-    link.download = `autonomera777_${new Date().toISOString().split('T')[0]}.xlsx`;
-    link.click();
+    try {
+        showMessage('info', '⏳ Подготавливаю файл для экспорта...');
 
-    showMessage('success', `✅ Excel файл с ${allData.length} объявлениями загружен`);
+        // Проверяем, это загрузка из БД или из парсинга сессии
+        let xlsxUrl;
+        if (currentSessionId && currentSessionId.startsWith('db_load_')) {
+            // Это загрузка из БД - используем /api/db/export
+            xlsxUrl = `${serverUrl}/api/db/export`;
+        } else if (currentSessionId) {
+            // Это парсинг сессия - используем сессионный экспорт
+            xlsxUrl = `${serverUrl}/api/sessions/${currentSessionId}/export?format=xlsx`;
+        } else {
+            // Нет сессии - используем DB экспорт
+            xlsxUrl = `${serverUrl}/api/db/export`;
+        }
+
+        console.log(`📥 Загружаю файл с URL: ${xlsxUrl}`);
+
+        const response = await fetch(xlsxUrl);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `autonomera777_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        showMessage('success', `✅ Excel файл с ${allData.length} объявлениями загружен`);
+        console.log(`✅ Файл успешно скачан`);
+    } catch (error) {
+        showMessage('error', `❌ Ошибка при экспорте: ${error.message}`);
+        console.error('Ошибка экспорта:', error);
+    }
 }
 
 function switchTab(tabName, eventTarget) {
