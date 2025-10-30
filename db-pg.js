@@ -133,21 +133,19 @@ async function getListingsStats() {
     const result = await client.query(`
       SELECT
         COUNT(*) as total,
-        COUNT(DISTINCT TRIM(CAST(region AS TEXT))) as regions_count,
-        COUNT(DISTINCT TRIM(CAST(seller AS TEXT))) as sellers_count,
-        ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER)))::integer as avg_price,
-        MIN(CAST(NULLIF(price, '') AS INTEGER))::integer as min_price,
-        MAX(CAST(NULLIF(price, '') AS INTEGER))::integer as max_price,
+        COUNT(DISTINCT region) as regions_count,
+        ROUND(AVG(price))::bigint as avg_price,
+        MIN(price)::bigint as min_price,
+        MAX(price)::bigint as max_price,
         DATE(MAX(updated_at)) as last_update
       FROM listings
-      WHERE price IS NOT NULL AND price != ''
+      WHERE price IS NOT NULL
     `);
 
     const stats = result.rows[0] || {};
     return {
       total: parseInt(stats.total) || 0,
       regionsCount: parseInt(stats.regions_count) || 0,
-      sellersCount: parseInt(stats.sellers_count) || 0,
       avgPrice: parseInt(stats.avg_price) || 0,
       minPrice: parseInt(stats.min_price) || 0,
       maxPrice: parseInt(stats.max_price) || 0,
@@ -269,11 +267,11 @@ async function getExistingNumbers() {
   const client = await pool.connect();
   try {
     const result = await client.query(`
-      SELECT number, price FROM listings WHERE status = 'active'
+      SELECT nomer, price FROM listings WHERE status = 'активно'
     `);
     const numbers = {};
     result.rows.forEach(row => {
-      numbers[row.number] = row.price;
+      numbers[row.nomer] = row.price;
     });
     return numbers;
   } catch (error) {
@@ -291,7 +289,7 @@ async function getListingByNumber(number) {
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT * FROM listings WHERE number = $1',
+      'SELECT * FROM listings WHERE nomer = $1',
       [number]
     );
     return result.rows[0] || null;
@@ -340,7 +338,7 @@ async function getPriceHistory(number, limit = 10) {
   try {
     const result = await client.query(`
       SELECT * FROM price_history
-      WHERE number = $1
+      WHERE nomer = $1
       ORDER BY updated_at DESC
       LIMIT $2
     `, [number, limit]);
@@ -385,7 +383,7 @@ async function getDifferentialListings(newListings, sessionId) {
   let updatedCount = 0;
 
   for (const listing of newListings) {
-    const existingPrice = existingNumbers[listing.number];
+    const existingPrice = existingNumbers[listing.nomer];
 
     if (existingPrice === undefined) {
       // Новое объявление
@@ -394,7 +392,7 @@ async function getDifferentialListings(newListings, sessionId) {
     } else if (listing.price !== existingPrice) {
       // Цена изменилась
       const priceChange = await recordPriceChange(
-        listing.number,
+        listing.nomer,
         existingPrice,
         listing.price,
         sessionId
@@ -463,13 +461,13 @@ async function smartUpsertListing(listingData, sessionId) {
   const client = await pool.connect();
   try {
     const {
-      number, price, region, status, datePosted, dateUpdated, seller, url
+      nomer, price, region, status, date_created, date_updated, url
     } = listingData;
 
     // 1. Получаем текущую запись по номеру
     const existing = await client.query(
-      'SELECT id, price as current_price, date_updated as last_site_update FROM listings WHERE number = $1',
-      [number]
+      'SELECT id, price as current_price, date_updated as last_site_update FROM listings WHERE nomer = $1',
+      [nomer]
     );
 
     let listingId;
@@ -478,20 +476,21 @@ async function smartUpsertListing(listingData, sessionId) {
 
     // 2. Вставляем или обновляем основную таблицу
     const result = await client.query(`
-      INSERT INTO listings (number, price, region, status, date_posted, date_updated, seller, url, parsed_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-      ON CONFLICT (number) DO UPDATE SET
+      INSERT INTO listings (nomer, price, region, status, date_created, date_updated, url, parsed_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+      ON CONFLICT (nomer) DO UPDATE SET
         price = EXCLUDED.price,
         status = EXCLUDED.status,
         date_updated = EXCLUDED.date_updated,
-        parsed_at = NOW()
+        parsed_at = NOW(),
+        updated_at = NOW()
       RETURNING id
-    `, [number, price, region, status, datePosted, dateUpdated, seller, url]);
+    `, [nomer, price, region, status, date_created, date_updated, url]);
 
     listingId = result.rows[0].id;
 
     // 3. Проверяем: есть ли история, нужно ли писать
-    const newDateUpdated = dateUpdated ? new Date(dateUpdated) : null;
+    const newDateUpdated = date_updated ? new Date(date_updated) : null;
     const oldDateUpdated = prevDateUpdated ? new Date(prevDateUpdated) : null;
 
     // Если даты нет в новых данных - не записываем историю
@@ -510,15 +509,15 @@ async function smartUpsertListing(listingData, sessionId) {
     // Записываем в историю
     await client.query(`
       INSERT INTO listing_history
-      (number, old_price, new_price, price_delta, change_direction, date_updated_site, is_price_changed, session_id)
+      (nomer, old_price, new_price, price_delta, change_direction, date_updated_site, is_price_changed, session_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [
-      number,
+      nomer,
       prevPrice || price,
       price,
       priceDelta,
       changeDir,
-      dateUpdated,
+      date_updated,
       priceChanged,
       sessionId
     ]);
@@ -547,7 +546,7 @@ async function getLastPriceChange(number) {
     const result = await client.query(`
       SELECT price_delta, date_updated_site, recorded_at
       FROM listing_history
-      WHERE number = $1 AND is_price_changed = TRUE
+      WHERE nomer = $1 AND is_price_changed = TRUE
       ORDER BY recorded_at DESC
       LIMIT 1
     `, [number]);
@@ -571,13 +570,12 @@ async function getListingsWithHistory(filters = {}) {
     let query = `
       SELECT
         l.id,
-        l.number,
+        l.nomer,
         l.price,
         l.region,
         l.status,
-        l.date_posted,
+        l.date_created,
         l.date_updated,
-        l.seller,
         l.url,
         l.parsed_at,
         l.updated_at,
@@ -589,7 +587,7 @@ async function getListingsWithHistory(filters = {}) {
             'is_price_changed', lh.is_price_changed
           )
           FROM listing_history lh
-          WHERE lh.number = l.number
+          WHERE lh.nomer = l.nomer
           ORDER BY lh.recorded_at DESC
           LIMIT 1
         ) as last_change

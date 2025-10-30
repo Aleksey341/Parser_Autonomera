@@ -1106,14 +1106,14 @@ app.get('/api/db/regions', async (req, res) => {
     try {
       const result = await client.query(`
         SELECT
-          COALESCE(NULLIF(TRIM(CAST(region AS TEXT)), ''), 'Unknown') as region,
+          COALESCE(region, 0)::text as region,
           COUNT(*) as count,
-          ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER)))::integer as avg_price,
-          MIN(CAST(NULLIF(price, '') AS INTEGER))::integer as min_price,
-          MAX(CAST(NULLIF(price, '') AS INTEGER))::integer as max_price
+          ROUND(AVG(price))::bigint as avg_price,
+          MIN(price)::bigint as min_price,
+          MAX(price)::bigint as max_price
         FROM listings
-        WHERE price IS NOT NULL AND price != ''
-        GROUP BY TRIM(CAST(region AS TEXT))
+        WHERE price IS NOT NULL
+        GROUP BY region
         HAVING COUNT(*) > 0
         ORDER BY COUNT(*) DESC
         LIMIT 100
@@ -1128,35 +1128,35 @@ app.get('/api/db/regions', async (req, res) => {
   }
 });
 
-// GET /api/db/sellers - группировка по продавцам
-app.get('/api/db/sellers', async (req, res) => {
-  try {
-    const pool = db.pool();
-    const client = await pool.connect();
-    try {
-      const result = await client.query(`
-        SELECT
-          COALESCE(NULLIF(TRIM(CAST(seller AS TEXT)), ''), 'Unknown') as seller,
-          COUNT(*) as count,
-          ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER)))::integer as avg_price,
-          MIN(CAST(NULLIF(price, '') AS INTEGER))::integer as min_price,
-          MAX(CAST(NULLIF(price, '') AS INTEGER))::integer as max_price
-        FROM listings
-        WHERE price IS NOT NULL AND price != ''
-        GROUP BY TRIM(CAST(seller AS TEXT))
-        HAVING COUNT(*) > 0
-        ORDER BY COUNT(*) DESC
-        LIMIT 100
-      `);
-      res.json({ rows: result.rows });
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    console.error('❌ Ошибка в /api/db/sellers:', error);
-    res.json({ rows: [] });
-  }
-});
+// GET /api/db/sellers - группировка по продавцам (DISABLED - seller column not in CSV)
+// app.get('/api/db/sellers', async (req, res) => {
+//   try {
+//     const pool = db.pool();
+//     const client = await pool.connect();
+//     try {
+//       const result = await client.query(`
+//         SELECT
+//           COALESCE(NULLIF(TRIM(CAST(seller AS TEXT)), ''), 'Unknown') as seller,
+//           COUNT(*) as count,
+//           ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER)))::integer as avg_price,
+//           MIN(CAST(NULLIF(price, '') AS INTEGER))::integer as min_price,
+//           MAX(CAST(NULLIF(price, '') AS INTEGER))::integer as max_price
+//         FROM listings
+//         WHERE price IS NOT NULL AND price != ''
+//         GROUP BY TRIM(CAST(seller AS TEXT))
+//         HAVING COUNT(*) > 0
+//         ORDER BY COUNT(*) DESC
+//         LIMIT 100
+//       `);
+//       res.json({ rows: result.rows });
+//     } finally {
+//       client.release();
+//     }
+//   } catch (error) {
+//     console.error('❌ Ошибка в /api/db/sellers:', error);
+//     res.json({ rows: [] });
+//   }
+// });
 
 // GET /api/db/export - экспорт данных из БД в XLSX
 app.get('/api/db/export', async (req, res) => {
