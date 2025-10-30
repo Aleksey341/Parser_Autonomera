@@ -730,6 +730,81 @@ async function resumeParsing() {
         document.getElementById('spinnerResume').style.display = 'none';
     }
 }
+
+/**
+ * Отображает статистику по базе данных
+ */
+function displayOverview(overview) {
+    if (!overview) return;
+
+    // Обновляем основную статистику
+    document.getElementById('statsTotal').textContent = overview.total || '0';
+    document.getElementById('statsRegions').textContent = overview.regionsCount || '0';
+    document.getElementById('statsAvgPrice').textContent = (overview.avgPrice || 0).toLocaleString('ru-RU');
+    document.getElementById('statsMinPrice').textContent = (overview.minPrice || 0).toLocaleString('ru-RU');
+    document.getElementById('statsMaxPrice').textContent = (overview.maxPrice || 0).toLocaleString('ru-RU');
+
+    console.log('📊 Статистика обновлена:', overview);
+}
+
+/**
+ * Отображает таблицу данных объявлений
+ */
+function displayData(data) {
+    if (!data || data.length === 0) {
+        document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" style="text-align: center;">Нет данных</td></tr>';
+        return;
+    }
+
+    let html = '';
+    data.slice(0, 100).forEach(item => {
+        const price = (item.price || 0).toLocaleString('ru-RU');
+        const dateUpdated = new Date(item.date_updated || item.updated_at).toLocaleDateString('ru-RU');
+        const priceChange = item.last_change ? ` (${item.last_change.price_delta > 0 ? '↑' : '↓'} ${Math.abs(item.last_change.price_delta).toLocaleString('ru-RU')})` : '';
+
+        html += `
+            <tr>
+                <td>${item.number || ''}</td>
+                <td>${item.region || ''}</td>
+                <td>${price}</td>
+                <td>${item.seller || ''}</td>
+                <td>${item.status || ''}</td>
+                <td>${dateUpdated}</td>
+                <td>${item.last_change ? '✓' : ''}</td>
+                <td><a href="${item.url || '#'}" target="_blank" style="color: #0066cc; text-decoration: none;">Ссылка</a></td>
+            </tr>
+        `;
+    });
+
+    document.getElementById('tableBody').innerHTML = html;
+    console.log(`📋 Таблица обновлена: ${data.length} объявлений`);
+}
+
+/**
+ * Отображает аналитику по регионам
+ */
+function displayRegions(regions) {
+    if (!regions || regions.length === 0) {
+        document.getElementById('regionsTableBody').innerHTML = '<tr><td colspan="3" style="text-align: center;">Нет данных</td></tr>';
+        return;
+    }
+
+    let html = '';
+    regions.forEach(region => {
+        const avgPrice = (region.avg_price || 0).toLocaleString('ru-RU');
+        html += `
+            <tr>
+                <td>${region.region || 'Неизвестный регион'}</td>
+                <td>${region.count || 0}</td>
+                <td>${avgPrice}</td>
+            </tr>
+        `;
+    });
+
+    document.getElementById('regionsTableBody').innerHTML = html;
+    console.log(`🗺️ Регионы обновлены: ${regions.length} регионов`);
+}
+
 window.addEventListener('load', () => {
     console.log('🚗 Парсер АВТОНОМЕРА777 готов');
 });
