@@ -808,8 +808,10 @@ function displayData(data) {
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Регион</th>
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Цена</th>
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Статус</th>
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Дата обновления</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Дата размещения</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Дата поднятия</th>
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Изменение цены</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Дата изм. цены</th>
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Ссылка</th>
                 </tr>
             </thead>
@@ -819,9 +821,11 @@ function displayData(data) {
     // Показываем все данные (но таблица может быть большой, браузер справится)
     data.forEach(item => {
         const price = (item.price || 0).toLocaleString('ru-RU');
-        const dateUpdated = item.date_updated ? new Date(item.date_updated).toLocaleDateString('ru-RU') : (item.updated_at ? new Date(item.updated_at).toLocaleDateString('ru-RU') : '-');
+        const datePosted = item.date_posted ? new Date(item.date_posted).toLocaleDateString('ru-RU') : '-';
+        const dateUpdated = item.date_updated ? new Date(item.date_updated).toLocaleDateString('ru-RU') : '-';
         const priceChange = item.last_change && item.last_change.price_delta ? item.last_change.price_delta : null;
         const priceChangeStr = priceChange ? (priceChange > 0 ? `↑+${priceChange.toLocaleString('ru-RU')}` : `↓${priceChange.toLocaleString('ru-RU')}`) : '-';
+        const dateUpdatedSite = item.last_change && item.last_change.date_updated_site ? new Date(item.last_change.date_updated_site).toLocaleDateString('ru-RU') : '-';
 
         tableHtml += `
             <tr style="border-bottom: 1px solid #eee;">
@@ -829,8 +833,10 @@ function displayData(data) {
                 <td style="padding: 10px;">${item.region || '-'}</td>
                 <td style="padding: 10px;">₽${price}</td>
                 <td style="padding: 10px;">${item.status || '-'}</td>
+                <td style="padding: 10px;">${datePosted}</td>
                 <td style="padding: 10px;">${dateUpdated}</td>
                 <td style="padding: 10px;">${priceChangeStr}</td>
+                <td style="padding: 10px;">${dateUpdatedSite}</td>
                 <td style="padding: 10px;"><a href="${item.url || '#'}" target="_blank" style="color: #0066cc; text-decoration: none;">→</a></td>
             </tr>
         `;
