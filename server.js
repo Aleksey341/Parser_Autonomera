@@ -1165,14 +1165,13 @@ app.get('/api/db/export', async (req, res) => {
 
     // Преобразуем в формат для XLSX
     const rows = data.map(item => ({
-      'Номер': item.number,
+      'Номер': item.nomer,
       'Цена': item.price,
       'Регион': item.region,
       'Статус': item.status,
-      'Продавец': item.seller,
-      'Дата обновления': item.date_updated,
+      'Дата обновления': item.date_updated ? new Date(item.date_updated).toLocaleDateString('ru-RU') : '-',
       'Изм. цены': item.last_change?.price_delta || '-',
-      'Дата изм. цены': item.last_change?.date_updated_site || '-',
+      'Дата изм. цены': item.last_change?.date_updated_site ? new Date(item.last_change.date_updated_site).toLocaleDateString('ru-RU') : '-',
       'URL': item.url
     }));
 
@@ -1201,7 +1200,7 @@ app.get('/api/db/price-changes', async (req, res) => {
     const client = db.pool();
     const result = await client.query(`
       SELECT
-        number,
+        nomer,
         old_price,
         new_price,
         price_delta,
