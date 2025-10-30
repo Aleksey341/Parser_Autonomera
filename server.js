@@ -637,8 +637,8 @@ app.get('/api/stats/:sessionId', (req, res) => {
         uniqueSellers: sellers.size,
         regions: Array.from(regions),
         stats: {
-            priceRange: `₽${minPrice.toLocaleString('ru-RU')} - ₽${maxPrice.toLocaleString('ru-RU')}`,
-            avgPriceFormatted: `₽${avgPrice.toLocaleString('ru-RU')}`
+            priceRange: `${minPrice.toLocaleString('ru-RU')} - ${maxPrice.toLocaleString('ru-RU')} ₽`,
+            avgPriceFormatted: `${avgPrice.toLocaleString('ru-RU')} ₽`
         }
     });
 });

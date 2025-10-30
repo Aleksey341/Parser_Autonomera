@@ -569,8 +569,8 @@ async function updateStats() {
 
         document.getElementById('totalCount').textContent = stats.totalListings;
         document.getElementById('avgPrice').textContent = stats.stats.avgPriceFormatted;
-        document.getElementById('minPriceResult').textContent = '₽' + stats.minPrice.toLocaleString('ru-RU');
-        document.getElementById('maxPriceResult').textContent = '₽' + stats.maxPrice.toLocaleString('ru-RU');
+        document.getElementById('minPriceResult').textContent = stats.minPrice.toLocaleString('ru-RU') + ' ₽';
+        document.getElementById('maxPriceResult').textContent = stats.maxPrice.toLocaleString('ru-RU') + ' ₽';
         document.getElementById('uniqueRegions').textContent = stats.uniqueRegions;
         document.getElementById('uniqueSellers').textContent = stats.uniqueSellers;
 
@@ -784,9 +784,9 @@ function displayOverview(overview) {
     // Обновляем основную статистику
     document.getElementById('totalCount').textContent = overview.total || '0';
     document.getElementById('uniqueRegions').textContent = overview.regionsCount || '0';
-    document.getElementById('avgPrice').textContent = '₽' + (overview.avgPrice || 0).toLocaleString('ru-RU');
-    document.getElementById('minPriceResult').textContent = '₽' + (overview.minPrice || 0).toLocaleString('ru-RU');
-    document.getElementById('maxPriceResult').textContent = '₽' + (overview.maxPrice || 0).toLocaleString('ru-RU');
+    document.getElementById('avgPrice').textContent = (overview.avgPrice || 0).toLocaleString('ru-RU') + ' ₽';
+    document.getElementById('minPriceResult').textContent = (overview.minPrice || 0).toLocaleString('ru-RU') + ' ₽';
+    document.getElementById('maxPriceResult').textContent = (overview.maxPrice || 0).toLocaleString('ru-RU') + ' ₽';
 
     console.log('📊 Статистика обновлена:', overview);
 }
@@ -832,7 +832,7 @@ function displayData(data) {
             <tr style="border-bottom: 1px solid #eee;">
                 <td style="padding: 10px;">${item.nomer || '-'}</td>
                 <td style="padding: 10px;">${item.region || '-'}</td>
-                <td style="padding: 10px;">₽${price}</td>
+                <td style="padding: 10px;">${price} ₽</td>
                 <td style="padding: 10px;">${item.status || '-'}</td>
                 <td style="padding: 10px;">${datePosted}</td>
                 <td style="padding: 10px;">${dateUpdated}</td>
@@ -868,7 +868,7 @@ function displayRegions(regions) {
             <tr>
                 <td>${region.region || 'Неизвестный регион'}</td>
                 <td>${region.count || 0}</td>
-                <td>₽${avgPrice}</td>
+                <td>${avgPrice} ₽</td>
             </tr>
         `;
     });
