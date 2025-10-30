@@ -133,14 +133,14 @@ async function getListingsStats() {
     const result = await client.query(`
       SELECT
         COUNT(*) as total,
-        COUNT(DISTINCT TRIM(region)) as regions_count,
-        COUNT(DISTINCT TRIM(seller)) as sellers_count,
-        ROUND(AVG(price::integer))::integer as avg_price,
-        MIN(price::integer)::integer as min_price,
-        MAX(price::integer)::integer as max_price,
+        COUNT(DISTINCT TRIM(CAST(region AS TEXT))) as regions_count,
+        COUNT(DISTINCT TRIM(CAST(seller AS TEXT))) as sellers_count,
+        ROUND(AVG(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER)))::integer as avg_price,
+        MIN(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as min_price,
+        MAX(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as max_price,
         DATE(MAX(updated_at)) as last_update
       FROM listings
-      WHERE TRIM(COALESCE(price, '')) ~ '^[0-9]+$'
+      WHERE TRIM(CAST(COALESCE(price, '') AS TEXT)) ~ '^[0-9]+$'
     `);
 
     const stats = result.rows[0] || {};

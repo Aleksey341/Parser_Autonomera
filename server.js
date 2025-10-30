@@ -1106,14 +1106,14 @@ app.get('/api/db/regions', async (req, res) => {
     try {
       const result = await client.query(`
         SELECT
-          COALESCE(NULLIF(TRIM(region), ''), 'Unknown') as region,
+          COALESCE(NULLIF(TRIM(CAST(region AS TEXT)), ''), 'Unknown') as region,
           COUNT(*) as count,
-          ROUND(AVG(price::integer))::integer as avg_price,
-          MIN(price::integer)::integer as min_price,
-          MAX(price::integer)::integer as max_price
+          ROUND(AVG(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER)))::integer as avg_price,
+          MIN(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as min_price,
+          MAX(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as max_price
         FROM listings
-        WHERE TRIM(COALESCE(price, '')) ~ '^[0-9]+$'
-        GROUP BY TRIM(region)
+        WHERE TRIM(CAST(COALESCE(price, '') AS TEXT)) ~ '^[0-9]+$'
+        GROUP BY TRIM(CAST(region AS TEXT))
         HAVING COUNT(*) > 0
         ORDER BY COUNT(*) DESC
         LIMIT 100
@@ -1136,14 +1136,14 @@ app.get('/api/db/sellers', async (req, res) => {
     try {
       const result = await client.query(`
         SELECT
-          COALESCE(NULLIF(TRIM(seller), ''), 'Unknown') as seller,
+          COALESCE(NULLIF(TRIM(CAST(seller AS TEXT)), ''), 'Unknown') as seller,
           COUNT(*) as count,
-          ROUND(AVG(price::integer))::integer as avg_price,
-          MIN(price::integer)::integer as min_price,
-          MAX(price::integer)::integer as max_price
+          ROUND(AVG(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER)))::integer as avg_price,
+          MIN(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as min_price,
+          MAX(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as max_price
         FROM listings
-        WHERE TRIM(COALESCE(price, '')) ~ '^[0-9]+$'
-        GROUP BY TRIM(seller)
+        WHERE TRIM(CAST(COALESCE(price, '') AS TEXT)) ~ '^[0-9]+$'
+        GROUP BY TRIM(CAST(seller AS TEXT))
         HAVING COUNT(*) > 0
         ORDER BY COUNT(*) DESC
         LIMIT 100
