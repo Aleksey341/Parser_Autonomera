@@ -113,7 +113,29 @@ async function createTables() {
       CREATE INDEX IF NOT EXISTS idx_cron_status ON cron_logs(status);
     `);
 
-    // Таблица для отслеживания изменений цен
+    // Таблица для отслеживания изменений цен и обновлений дат
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS listing_history (
+        id SERIAL PRIMARY KEY,
+        number VARCHAR(15) NOT NULL REFERENCES listings(number) ON DELETE CASCADE,
+        old_price INTEGER,
+        new_price INTEGER,
+        price_delta INTEGER,
+        change_direction VARCHAR(20),
+        date_updated_site TIMESTAMP,
+        is_price_changed BOOLEAN DEFAULT FALSE,
+        recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        session_id VARCHAR(36),
+        FOREIGN KEY (session_id) REFERENCES parse_sessions(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_listing_history_number ON listing_history(number);
+      CREATE INDEX IF NOT EXISTS idx_listing_history_recorded_at ON listing_history(recorded_at);
+      CREATE INDEX IF NOT EXISTS idx_listing_history_session ON listing_history(session_id);
+      CREATE INDEX IF NOT EXISTS idx_listing_history_date_updated ON listing_history(date_updated_site);
+    `);
+
+    // Таблица для отслеживания изменений цен (оставляем для совместимости)
     await client.query(`
       CREATE TABLE IF NOT EXISTS price_history (
         id SERIAL PRIMARY KEY,
@@ -532,6 +554,184 @@ async function getPriceChangeStats(days = 7) {
   }
 }
 
+/**
+ * Умный upsert с логикой сравнения дат и цен
+ * Сохраняет в историю только изменения, если дата обновления возросла
+ */
+async function smartUpsertListing(listingData, sessionId) {
+  const client = await pool.connect();
+  try {
+    const {
+      number, price, region, status, datePosted, dateUpdated, seller, url
+    } = listingData;
+
+    // 1. Получаем текущую запись по номеру
+    const existing = await client.query(
+      'SELECT id, price as current_price, date_updated as last_site_update FROM listings WHERE number = $1',
+      [number]
+    );
+
+    let listingId;
+    const prevPrice = existing.rowCount > 0 ? existing.rows[0].current_price : null;
+    const prevDateUpdated = existing.rowCount > 0 ? existing.rows[0].last_site_update : null;
+
+    // 2. Вставляем или обновляем основную таблицу
+    const result = await client.query(`
+      INSERT INTO listings (number, price, region, status, date_posted, date_updated, seller, url, parsed_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      ON CONFLICT (number) DO UPDATE SET
+        price = EXCLUDED.price,
+        status = EXCLUDED.status,
+        date_updated = EXCLUDED.date_updated,
+        parsed_at = NOW()
+      RETURNING id
+    `, [number, price, region, status, datePosted, dateUpdated, seller, url]);
+
+    listingId = result.rows[0].id;
+
+    // 3. Проверяем: есть ли история, нужно ли писать
+    const newDateUpdated = dateUpdated ? new Date(dateUpdated) : null;
+    const oldDateUpdated = prevDateUpdated ? new Date(prevDateUpdated) : null;
+
+    // Если даты нет в новых данных - не записываем историю
+    if (!newDateUpdated) return { listingId, newEntry: existing.rowCount === 0 };
+
+    // Если есть предыдущая дата и она >= новой - не записываем (нет роста даты)
+    if (oldDateUpdated && newDateUpdated <= oldDateUpdated) {
+      return { listingId, newEntry: false, reason: 'date_not_increased' };
+    }
+
+    // 4. Логика написания истории: дата обновления выросла
+    const priceChanged = prevPrice !== null && Number(price) !== Number(prevPrice);
+    const priceDelta = priceChanged ? Number(price) - Number(prevPrice) : null;
+    const changeDir = priceChanged ? (priceDelta > 0 ? 'increased' : 'decreased') : null;
+
+    // Записываем в историю
+    await client.query(`
+      INSERT INTO listing_history
+      (number, old_price, new_price, price_delta, change_direction, date_updated_site, is_price_changed, session_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
+      number,
+      prevPrice || price,
+      price,
+      priceDelta,
+      changeDir,
+      dateUpdated,
+      priceChanged,
+      sessionId
+    ]);
+
+    return {
+      listingId,
+      newEntry: existing.rowCount === 0,
+      priceChanged,
+      priceDelta,
+      historyRecorded: true
+    };
+  } catch (error) {
+    console.error('Ошибка при smartUpsertListing:', error.message);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Получить последнее изменение цены для номера (если было)
+ */
+async function getLastPriceChange(number) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT price_delta, date_updated_site, recorded_at
+      FROM listing_history
+      WHERE number = $1 AND is_price_changed = TRUE
+      ORDER BY recorded_at DESC
+      LIMIT 1
+    `, [number]);
+
+    return result.rows[0] || null;
+  } catch (error) {
+    console.error('Ошибка при getLastPriceChange:', error.message);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Получить список данных из БД для отображения в HTML
+ * с включением последнего изменения цены
+ */
+async function getListingsWithHistory(filters = {}) {
+  const client = await pool.connect();
+  try {
+    let query = `
+      SELECT
+        l.id,
+        l.number,
+        l.price,
+        l.region,
+        l.status,
+        l.date_posted,
+        l.date_updated,
+        l.seller,
+        l.url,
+        l.parsed_at,
+        l.updated_at,
+        (
+          SELECT json_build_object(
+            'price_delta', lh.price_delta,
+            'date_updated_site', lh.date_updated_site,
+            'recorded_at', lh.recorded_at,
+            'is_price_changed', lh.is_price_changed
+          )
+          FROM listing_history lh
+          WHERE lh.number = l.number
+          ORDER BY lh.recorded_at DESC
+          LIMIT 1
+        ) as last_change
+      FROM listings l
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (filters.region) {
+      query += ` AND l.region = $${paramIndex}`;
+      params.push(filters.region);
+      paramIndex++;
+    }
+    if (filters.minPrice !== undefined) {
+      query += ` AND l.price >= $${paramIndex}`;
+      params.push(filters.minPrice);
+      paramIndex++;
+    }
+    if (filters.maxPrice !== undefined) {
+      query += ` AND l.price <= $${paramIndex}`;
+      params.push(filters.maxPrice);
+      paramIndex++;
+    }
+    if (filters.status) {
+      query += ` AND l.status = $${paramIndex}`;
+      params.push(filters.status);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY l.date_updated DESC NULLS LAST LIMIT $${paramIndex}`;
+    params.push(filters.limit || 10000);
+
+    const result = await client.query(query, params);
+    return result.rows;
+  } catch (error) {
+    console.error('Ошибка при getListingsWithHistory:', error.message);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   initializeDatabase,
   pool: () => pool,
@@ -548,5 +748,8 @@ module.exports = {
   getPriceHistory,
   getRecentPriceChanges,
   getDifferentialListings,
-  getPriceChangeStats
+  getPriceChangeStats,
+  smartUpsertListing,
+  getLastPriceChange,
+  getListingsWithHistory
 };

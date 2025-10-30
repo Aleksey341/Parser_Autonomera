@@ -44,10 +44,11 @@ function translateStatus(status) {
 }
 
 async function startParsing() {
+    // НОВАЯ ЛОГИКА: Загружаем данные из БД вместо парсинга сайта
+    // Парсинг выполняется автоматически по cron каждый день в 00:01
+
     const minPrice = parseInt(document.getElementById('minPrice').value) || 0;
     const maxPrice = parseInt(document.getElementById('maxPrice').value) || Infinity;
-    const maxPages = 50;
-    const delayMs = 1000;
 
     try {
         const healthCheck = await fetch(`${serverUrl}/api/health`);
@@ -61,51 +62,68 @@ async function startParsing() {
     }
 
     document.getElementById('startBtn').disabled = true;
-    document.getElementById('stopBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
     document.getElementById('exportBtn').disabled = true;
-    document.getElementById('resumeBtn').disabled = true;
-    document.getElementById('resumeBtn').style.display = 'none';
     document.getElementById('spinner').style.display = 'inline-block';
     document.getElementById('progressSection').classList.add('active');
 
-    showMessage('info', '🚀 Начинаем парсинг...');
-    // Сразу обновляем статус (не ждем первого обновления с сервера)
-    document.getElementById('statusText').textContent = '🚀 Начинаем парсинг...';
-    document.getElementById('sessionStatus').textContent = 'Инициализация...';
+    showMessage('info', '📥 Загружаю данные из базы данных...');
+    document.getElementById('statusText').textContent = '📥 Загружаю данные из БД...';
+    document.getElementById('sessionStatus').textContent = 'Загрузка...';
     document.getElementById('parsingTimer').textContent = '00:00';
     document.getElementById('loadedCount').textContent = '0';
     foundCount = 0;
     document.getElementById('foundCount').textContent = '0';
     isStopped = false;
-    console.log('📊 Счётчик найденных объявлений инициализирован: 0');
-    startParsingTimer();
+    currentSessionId = 'db_load_' + Date.now();
 
     try {
-        const response = await fetch(`${serverUrl}/api/parse`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                mode: 'demo',
-                minPrice,
-                maxPrice: maxPrice === Infinity ? 999999999 : maxPrice,
-                region: null,
-                maxPages,
-                delayMs
-            })
-        });
+        // Загружаем список запросов параллельно для максимальной скорости
+        showMessage('info', '⏳ Загружаю статистику и данные...', 3000);
 
-        const result = await response.json();
-        currentSessionId = result.sessionId;
+        const [overviewResp, dataResp, regionsResp] = await Promise.all([
+            fetch(`${serverUrl}/api/db/overview`),
+            fetch(`${serverUrl}/api/db/data?limit=10000`),
+            fetch(`${serverUrl}/api/db/regions`)
+        ]);
 
-        console.log('Session ID:', currentSessionId);
-        showMessage('success', '✅ Парсинг начат. ID сессии: ' + currentSessionId);
+        if (!overviewResp.ok || !dataResp.ok || !regionsResp.ok) {
+            throw new Error('Ошибка загрузки данных из БД');
+        }
 
-        monitorParsing();
+        const overview = await overviewResp.json();
+        const dataResult = await dataResp.json();
+        const regionsResult = await regionsResp.json();
+
+        // Обновляем глобальные переменные
+        allData = dataResult.rows || [];
+        filteredData = [...allData];
+        foundCount = allData.length;
+
+        console.log('✅ Данные загружены из БД:');
+        console.log(`   - Всего объявлений: ${overview.total}`);
+        console.log(`   - Загруженных записей: ${allData.length}`);
+
+        // Обновляем UI
+        document.getElementById('sessionStatus').textContent = '✅ Загружено из БД';
+        document.getElementById('loadedCount').textContent = allData.length;
+        document.getElementById('foundCount').textContent = foundCount;
+        document.getElementById('lastUpdate').textContent = new Date().toLocaleString('ru-RU');
+
+        // Показываем статистику
+        displayOverview(overview);
+        displayData(allData);
+        displayRegions(regionsResult.rows || []);
+        switchTab('overview');
+
+        showMessage('success', `✅ Данные загружены! ${allData.length} объявлений из БД`);
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('exportBtn').disabled = false;
+        document.getElementById('spinner').style.display = 'none';
 
     } catch (error) {
-        showMessage('error', `❌ Ошибка: ${error.message}`);
+        showMessage('error', `❌ Ошибка загрузки: ${error.message}`);
+        console.error('Детали ошибки:', error);
         document.getElementById('startBtn').disabled = false;
         document.getElementById('spinner').style.display = 'none';
     }

@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const cron = require('node-cron');
 const { stringify } = require('csv-stringify/sync');
 const XLSX = require('xlsx');
 const AutonomeraParser = require('./parser');
@@ -933,6 +934,284 @@ app.get('/session/:id', async (req, res) => {
   }
 });
 
+/**
+ * === CRON-ЗАПЛАНИРОВЩИК ПАРСИНГА ===
+ * Автоматический парсинг каждый день в 00:01 (московское время)
+ */
+let cronTaskRunning = false;
+
+async function runCronParsing() {
+  if (cronTaskRunning) {
+    console.log('⚠️  Cron парсинг уже запущен, пропускаем...');
+    return;
+  }
+
+  cronTaskRunning = true;
+  const cronSessionId = generateSessionId();
+  const startTime = new Date().toISOString();
+
+  console.log('\n' + '='.repeat(60));
+  console.log(`🤖 CRON-ПАРСИНГ ЗАПУЩЕН: ${startTime}`);
+  console.log(`📌 Сессия: ${cronSessionId}`);
+  console.log('='.repeat(60));
+
+  try {
+    // Читаем параметры из .env
+    const minPrice = Number(process.env.MIN_PRICE || 0);
+    const maxPrice = Number(process.env.MAX_PRICE || 10000000);
+    const maxPages = Number(process.env.MAX_PAGES || 100);
+    const region = process.env.PARSER_REGION || null;
+    const delayMs = Number(process.env.REQUEST_DELAY || 100);
+
+    console.log(`📊 Параметры: цена ${minPrice}-${maxPrice}, регион: ${region}, страниц: ${maxPages}`);
+
+    // Создаем запись о cron сессии в БД
+    try {
+      await db.createParseSession(cronSessionId, {
+        minPrice,
+        maxPrice,
+        maxPages,
+        region,
+        scheduledType: 'cron',
+        scheduledTime: startTime
+      });
+    } catch (e) {
+      console.warn(`⚠️  Не удалось создать запись сессии в БД: ${e.message}`);
+    }
+
+    // Запускаем парсер
+    const parser = new AutonomeraParser({
+      minPrice,
+      maxPrice,
+      region,
+      maxPages,
+      delayMs,
+      concurrentRequests: Number(process.env.CONCURRENT_REQUESTS || 500),
+      requestDelayMs: Number(process.env.REQUEST_DELAY_MS || 50)
+    });
+
+    await parser.initBrowser();
+    const result = await parser.parse();
+    await parser.closeBrowser();
+
+    console.log(`✅ Парсинг завершен: ${parser.listings.length} объявлений`);
+
+    // Сохраняем в БД с умной логикой
+    let newCount = 0;
+    let updatedCount = 0;
+    let unchangedCount = 0;
+
+    for (const listing of parser.listings) {
+      try {
+        const upsertResult = await db.smartUpsertListing(listing, cronSessionId);
+        if (upsertResult.newEntry) newCount++;
+        else if (upsertResult.historyRecorded) updatedCount++;
+        else unchangedCount++;
+      } catch (e) {
+        console.error(`❌ Ошибка при сохранении ${listing.number}: ${e.message}`);
+      }
+    }
+
+    console.log(`📈 Результаты сохранения:`);
+    console.log(`   - Новых: ${newCount}`);
+    console.log(`   - Обновлено: ${updatedCount}`);
+    console.log(`   - Без изменений: ${unchangedCount}`);
+
+    // Обновляем статус сессии в БД
+    try {
+      await db.updateParseSession(cronSessionId, {
+        status: 'completed',
+        totalItems: parser.listings.length,
+        newItems: newCount,
+        updatedItems: updatedCount
+      });
+    } catch (e) {
+      console.warn(`⚠️  Не удалось обновить статус сессии: ${e.message}`);
+    }
+
+    console.log(`✅ Cron-парсинг успешно завершен`);
+    console.log('='.repeat(60) + '\n');
+
+  } catch (error) {
+    console.error(`❌ Ошибка при cron-парсинге: ${error.message}`);
+    console.error(error);
+
+    try {
+      await db.updateParseSession(cronSessionId, {
+        status: 'error',
+        error: error.message
+      });
+    } catch (e) {
+      console.warn(`⚠️  Не удалось записать ошибку в БД: ${e.message}`);
+    }
+  } finally {
+    cronTaskRunning = false;
+  }
+}
+
+/**
+ * === НОВЫЕ API ENDPOINTS ДЛЯ ЗАГРУЗКИ ИЗ БД ===
+ */
+
+// GET /api/db/overview - статистика и метрики
+app.get('/api/db/overview', async (req, res) => {
+  try {
+    const stats = await db.getListingsStats();
+    res.json(stats || {
+      total: 0,
+      regionsCount: 0,
+      sellersCount: 0,
+      avgPrice: 0,
+      minPrice: 0,
+      maxPrice: 0,
+      lastUpdate: null
+    });
+  } catch (error) {
+    console.error('❌ Ошибка в /api/db/overview:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/db/data - получить данные с историей изменений цен
+app.get('/api/db/data', async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit || 1000), 10000);
+    const offset = Number(req.query.offset || 0);
+    const filters = {
+      limit,
+      region: req.query.region || null,
+      minPrice: req.query.minPrice ? Number(req.query.minPrice) : undefined,
+      maxPrice: req.query.maxPrice ? Number(req.query.maxPrice) : undefined,
+      status: req.query.status || null
+    };
+
+    const data = await db.getListingsWithHistory(filters);
+    res.json({
+      count: data.length,
+      limit,
+      offset,
+      rows: data
+    });
+  } catch (error) {
+    console.error('❌ Ошибка в /api/db/data:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/db/regions - группировка по регионам
+app.get('/api/db/regions', async (req, res) => {
+  try {
+    const client = db.pool();
+    const result = await client.query(`
+      SELECT
+        region,
+        COUNT(*) as total,
+        ROUND(AVG(price)::numeric) as avg_price,
+        MIN(price) as min_price,
+        MAX(price) as max_price
+      FROM listings
+      GROUP BY region
+      ORDER BY total DESC
+      LIMIT 100
+    `);
+    res.json({ rows: result.rows });
+  } catch (error) {
+    console.error('❌ Ошибка в /api/db/regions:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/db/sellers - группировка по продавцам
+app.get('/api/db/sellers', async (req, res) => {
+  try {
+    const client = db.pool();
+    const result = await client.query(`
+      SELECT
+        seller,
+        COUNT(*) as total,
+        ROUND(AVG(price)::numeric) as avg_price,
+        MIN(price) as min_price,
+        MAX(price) as max_price
+      FROM listings
+      WHERE seller IS NOT NULL
+      GROUP BY seller
+      ORDER BY total DESC
+      LIMIT 100
+    `);
+    res.json({ rows: result.rows });
+  } catch (error) {
+    console.error('❌ Ошибка в /api/db/sellers:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/db/export - экспорт данных из БД в XLSX
+app.get('/api/db/export', async (req, res) => {
+  try {
+    const data = await db.getListingsWithHistory({ limit: 100000 });
+
+    // Преобразуем в формат для XLSX
+    const rows = data.map(item => ({
+      'Номер': item.number,
+      'Цена': item.price,
+      'Регион': item.region,
+      'Статус': item.status,
+      'Продавец': item.seller,
+      'Дата обновления': item.date_updated,
+      'Изм. цены': item.last_change?.price_delta || '-',
+      'Дата изм. цены': item.last_change?.date_updated_site || '-',
+      'URL': item.url
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Listings');
+
+    const filename = `autonomera_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+    res.send(buf);
+  } catch (error) {
+    console.error('❌ Ошибка в /api/db/export:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/db/price-changes - история изменений цен
+app.get('/api/db/price-changes', async (req, res) => {
+  try {
+    const days = Number(req.query.days || 7);
+    const limit = Math.min(Number(req.query.limit || 1000), 10000);
+
+    const client = db.pool();
+    const result = await client.query(`
+      SELECT
+        number,
+        old_price,
+        new_price,
+        price_delta,
+        change_direction,
+        date_updated_site,
+        recorded_at
+      FROM listing_history
+      WHERE date_updated_site >= NOW() - INTERVAL '${days} days'
+      ORDER BY recorded_at DESC
+      LIMIT ${limit}
+    `);
+
+    res.json({
+      days,
+      count: result.rows.length,
+      rows: result.rows
+    });
+  } catch (error) {
+    console.error('❌ Ошибка в /api/db/price-changes:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Обработчик 404
 app.use((req, res) => {
     console.log(`❌ 404: ${req.method} ${req.path} не найден`);
@@ -967,6 +1246,28 @@ async function initializeApp() {
         console.log('='.repeat(60));
         const scheduler = await getScheduler();
         console.log(`ℹ️  Планировщик: ${scheduler.getStatus().isActive ? 'АКТИВЕН' : 'НЕАКТИВЕН'}`);
+
+        // Инициализируем cron для ежедневного парсинга
+        if (process.env.CRON_ENABLED === 'true') {
+          const cronTime = process.env.CRON_TIME || '1 0 * * *'; // По умолчанию 00:01 каждый день
+          const timezone = process.env.PARSER_TIMEZONE || 'Europe/Moscow';
+
+          console.log(`\n⏰ CRON ПАРСИНГ ВКЛЮЧЕН`);
+          console.log(`   Расписание: ${cronTime}`);
+          console.log(`   Таймзона: ${timezone}`);
+
+          cron.schedule(cronTime, () => {
+            console.log(`\n⏱️  Запуск cron-парсинга в ${new Date().toISOString()}`);
+            runCronParsing().catch(err => {
+              console.error(`❌ Критическая ошибка в cron-парсинге: ${err.message}`);
+            });
+          }, { timezone });
+
+          console.log(`✅ Cron-парсинг инициализирован`);
+        } else {
+          console.log(`\n⏰ CRON ПАРСИНГ ОТКЛЮЧЕН`);
+          console.log(`   Установите CRON_ENABLED=true для включения`);
+        }
 
         // Запускаем сервер
         const server = app.listen(PORT, '0.0.0.0', () => {
