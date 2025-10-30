@@ -784,7 +784,8 @@ function displayData(data) {
             <tbody>
     `;
 
-    data.slice(0, 100).forEach(item => {
+    // Показываем все данные (но таблица может быть большой, браузер справится)
+    data.forEach(item => {
         const price = (item.price || 0).toLocaleString('ru-RU');
         const dateUpdated = item.date_updated ? new Date(item.date_updated).toLocaleDateString('ru-RU') : (item.updated_at ? new Date(item.updated_at).toLocaleDateString('ru-RU') : '-');
         const priceChange = item.last_change && item.last_change.price_delta ? item.last_change.price_delta : null;
@@ -809,7 +810,7 @@ function displayData(data) {
     `;
 
     document.getElementById('tableContainer').innerHTML = tableHtml;
-    console.log(`📋 Таблица обновлена: ${data.length} объявлений`);
+    console.log(`📋 Таблица обновлена: ${data.length} объявлений (все записи показаны)`);
 }
 
 /**
