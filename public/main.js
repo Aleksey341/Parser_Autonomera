@@ -738,11 +738,11 @@ function displayOverview(overview) {
     if (!overview) return;
 
     // Обновляем основную статистику
-    document.getElementById('statsTotal').textContent = overview.total || '0';
-    document.getElementById('statsRegions').textContent = overview.regionsCount || '0';
-    document.getElementById('statsAvgPrice').textContent = (overview.avgPrice || 0).toLocaleString('ru-RU');
-    document.getElementById('statsMinPrice').textContent = (overview.minPrice || 0).toLocaleString('ru-RU');
-    document.getElementById('statsMaxPrice').textContent = (overview.maxPrice || 0).toLocaleString('ru-RU');
+    document.getElementById('totalCount').textContent = overview.total || '0';
+    document.getElementById('uniqueRegions').textContent = overview.regionsCount || '0';
+    document.getElementById('avgPrice').textContent = '₽' + (overview.avgPrice || 0).toLocaleString('ru-RU');
+    document.getElementById('minPriceResult').textContent = '₽' + (overview.minPrice || 0).toLocaleString('ru-RU');
+    document.getElementById('maxPriceResult').textContent = '₽' + (overview.maxPrice || 0).toLocaleString('ru-RU');
 
     console.log('📊 Статистика обновлена:', overview);
 }
@@ -752,31 +752,52 @@ function displayOverview(overview) {
  */
 function displayData(data) {
     if (!data || data.length === 0) {
-        document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" style="text-align: center;">Нет данных</td></tr>';
+        document.getElementById('tableContainer').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><h3>Нет данных</h3><p>БД пуста. Дождитесь первого парсинга в 00:01</p></div>';
         return;
     }
 
-    let html = '';
+    let tableHtml = `
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Номер</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Регион</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Цена</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Продавец</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Статус</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Дата обновления</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Изменения</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Ссылка</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
     data.slice(0, 100).forEach(item => {
         const price = (item.price || 0).toLocaleString('ru-RU');
-        const dateUpdated = new Date(item.date_updated || item.updated_at).toLocaleDateString('ru-RU');
-        const priceChange = item.last_change ? ` (${item.last_change.price_delta > 0 ? '↑' : '↓'} ${Math.abs(item.last_change.price_delta).toLocaleString('ru-RU')})` : '';
+        const dateUpdated = item.date_updated ? new Date(item.date_updated).toLocaleDateString('ru-RU') : (item.updated_at ? new Date(item.updated_at).toLocaleDateString('ru-RU') : '-');
+        const priceChangeStr = item.last_change ? `↑+${Math.abs(item.last_change.price_delta).toLocaleString('ru-RU')}` : '-';
 
-        html += `
-            <tr>
-                <td>${item.number || ''}</td>
-                <td>${item.region || ''}</td>
-                <td>${price}</td>
-                <td>${item.seller || ''}</td>
-                <td>${item.status || ''}</td>
-                <td>${dateUpdated}</td>
-                <td>${item.last_change ? '✓' : ''}</td>
-                <td><a href="${item.url || '#'}" target="_blank" style="color: #0066cc; text-decoration: none;">Ссылка</a></td>
+        tableHtml += `
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 10px;">${item.number || '-'}</td>
+                <td style="padding: 10px;">${item.region || '-'}</td>
+                <td style="padding: 10px;">${price}</td>
+                <td style="padding: 10px;">${item.seller || '-'}</td>
+                <td style="padding: 10px;">${item.status || '-'}</td>
+                <td style="padding: 10px;">${dateUpdated}</td>
+                <td style="padding: 10px;">${priceChangeStr}</td>
+                <td style="padding: 10px;"><a href="${item.url || '#'}" target="_blank" style="color: #0066cc; text-decoration: none;">→</a></td>
             </tr>
         `;
     });
 
-    document.getElementById('tableBody').innerHTML = html;
+    tableHtml += `
+            </tbody>
+        </table>
+    `;
+
+    document.getElementById('tableContainer').innerHTML = tableHtml;
     console.log(`📋 Таблица обновлена: ${data.length} объявлений`);
 }
 
@@ -785,7 +806,7 @@ function displayData(data) {
  */
 function displayRegions(regions) {
     if (!regions || regions.length === 0) {
-        document.getElementById('regionsTableBody').innerHTML = '<tr><td colspan="3" style="text-align: center;">Нет данных</td></tr>';
+        document.getElementById('regionsBody').innerHTML = '<tr><td colspan="3" style="text-align: center; color: #999;">Нет данных</td></tr>';
         return;
     }
 
@@ -796,12 +817,12 @@ function displayRegions(regions) {
             <tr>
                 <td>${region.region || 'Неизвестный регион'}</td>
                 <td>${region.count || 0}</td>
-                <td>${avgPrice}</td>
+                <td>₽${avgPrice}</td>
             </tr>
         `;
     });
 
-    document.getElementById('regionsTableBody').innerHTML = html;
+    document.getElementById('regionsBody').innerHTML = html;
     console.log(`🗺️ Регионы обновлены: ${regions.length} регионов`);
 }
 
