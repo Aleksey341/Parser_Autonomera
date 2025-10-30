@@ -870,6 +870,32 @@ function displayRegions(regions) {
     console.log(`🗺️ Регионы обновлены: ${regions.length} регионов`);
 }
 
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
     console.log('🚗 Парсер АВТОНОМЕРА777 готов');
+
+    // Автоматически загружаем данные из БД при загрузке страницы
+    try {
+        console.log('📥 Инициализация: загружаю данные из БД...');
+        await startParsing();
+    } catch (error) {
+        console.log('ℹ️ Автоматическая загрузка данных завершилась с ошибкой:', error.message);
+    }
+
+    // Проверяем, есть ли активное парсинг в localstorage
+    const savedSessionId = localStorage.getItem('activeParsingSession');
+    if (savedSessionId) {
+        try {
+            const response = await fetch(`${serverUrl}/api/sessions/${savedSessionId}/status`);
+            if (response.ok) {
+                const status = await response.json();
+                if (status.status === 'running' || status.status === 'paused') {
+                    console.log('⏳ Найдена активная сессия парсинга:', savedSessionId);
+                    currentSessionId = savedSessionId;
+                    monitorParsing();
+                }
+            }
+        } catch (error) {
+            console.log('ℹ️ Не удалось восстановить парсинг сессию:', error.message);
+        }
+    }
 });
