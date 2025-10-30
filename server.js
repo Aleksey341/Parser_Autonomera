@@ -1106,18 +1106,15 @@ app.get('/api/db/regions', async (req, res) => {
     try {
       const result = await client.query(`
         SELECT
-          region,
+          COALESCE(NULLIF(TRIM(region), ''), 'Unknown') as region,
           COUNT(*) as count,
-          ROUND(AVG(price::integer)) as avg_price,
-          MIN(price::integer) as min_price,
-          MAX(price::integer) as max_price
+          ROUND(AVG(price::integer))::integer as avg_price,
+          MIN(price::integer)::integer as min_price,
+          MAX(price::integer)::integer as max_price
         FROM listings
-        WHERE region IS NOT NULL
-          AND region != ''
-          AND price IS NOT NULL
-          AND price != ''
-          AND price ~ '^[0-9]+$'
-        GROUP BY region
+        WHERE TRIM(COALESCE(price, '')) ~ '^[0-9]+$'
+        GROUP BY TRIM(region)
+        HAVING COUNT(*) > 0
         ORDER BY COUNT(*) DESC
         LIMIT 100
       `);
@@ -1127,7 +1124,7 @@ app.get('/api/db/regions', async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Ошибка в /api/db/regions:', error);
-    res.status(500).json({ error: error.message });
+    res.json({ rows: [] });
   }
 });
 
@@ -1139,18 +1136,15 @@ app.get('/api/db/sellers', async (req, res) => {
     try {
       const result = await client.query(`
         SELECT
-          seller,
+          COALESCE(NULLIF(TRIM(seller), ''), 'Unknown') as seller,
           COUNT(*) as count,
-          ROUND(AVG(price::integer)) as avg_price,
-          MIN(price::integer) as min_price,
-          MAX(price::integer) as max_price
+          ROUND(AVG(price::integer))::integer as avg_price,
+          MIN(price::integer)::integer as min_price,
+          MAX(price::integer)::integer as max_price
         FROM listings
-        WHERE seller IS NOT NULL
-          AND seller != ''
-          AND price IS NOT NULL
-          AND price != ''
-          AND price ~ '^[0-9]+$'
-        GROUP BY seller
+        WHERE TRIM(COALESCE(price, '')) ~ '^[0-9]+$'
+        GROUP BY TRIM(seller)
+        HAVING COUNT(*) > 0
         ORDER BY COUNT(*) DESC
         LIMIT 100
       `);
@@ -1160,7 +1154,7 @@ app.get('/api/db/sellers', async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Ошибка в /api/db/sellers:', error);
-    res.status(500).json({ error: error.message });
+    res.json({ rows: [] });
   }
 });
 

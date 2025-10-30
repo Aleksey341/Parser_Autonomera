@@ -133,19 +133,17 @@ async function getListingsStats() {
     const result = await client.query(`
       SELECT
         COUNT(*) as total,
-        COUNT(DISTINCT region) as regions_count,
-        COUNT(DISTINCT seller) as sellers_count,
-        ROUND(AVG(price::integer)) as avg_price,
-        MIN(price::integer) as min_price,
-        MAX(price::integer) as max_price,
+        COUNT(DISTINCT TRIM(region)) as regions_count,
+        COUNT(DISTINCT TRIM(seller)) as sellers_count,
+        ROUND(AVG(price::integer))::integer as avg_price,
+        MIN(price::integer)::integer as min_price,
+        MAX(price::integer)::integer as max_price,
         DATE(MAX(updated_at)) as last_update
       FROM listings
-      WHERE price IS NOT NULL
-        AND price != ''
-        AND price ~ '^[0-9]+$'
+      WHERE TRIM(COALESCE(price, '')) ~ '^[0-9]+$'
     `);
 
-    const stats = result.rows[0];
+    const stats = result.rows[0] || {};
     return {
       total: parseInt(stats.total) || 0,
       regionsCount: parseInt(stats.regions_count) || 0,
@@ -157,7 +155,15 @@ async function getListingsStats() {
     };
   } catch (error) {
     console.error('Ошибка при получении статистики:', error.message);
-    return null;
+    return {
+      total: 0,
+      regionsCount: 0,
+      sellersCount: 0,
+      avgPrice: 0,
+      minPrice: 0,
+      maxPrice: 0,
+      lastUpdate: null
+    };
   } finally {
     client.release();
   }
