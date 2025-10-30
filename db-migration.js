@@ -39,6 +39,24 @@ async function migrateDatabase() {
     `);
     console.log('  ├─ ✓ Колонка updated_at добавлена (если не было)');
 
+    await client.query(`
+      ALTER TABLE listings
+      ADD COLUMN IF NOT EXISTS parsed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `);
+    console.log('  ├─ ✓ Колонка parsed_at добавлена (если не было)');
+
+    await client.query(`
+      ALTER TABLE listings
+      ADD COLUMN IF NOT EXISTS date_posted TIMESTAMP;
+    `);
+    console.log('  ├─ ✓ Колонка date_posted добавлена (если не было)');
+
+    await client.query(`
+      ALTER TABLE listings
+      ADD COLUMN IF NOT EXISTS date_updated TIMESTAMP;
+    `);
+    console.log('  ├─ ✓ Колонка date_updated добавлена (если не было)');
+
     // 2. Пересоздаем индексы (IF NOT EXISTS защищает от ошибок)
     console.log('  ├─ Создаем индексы для listings...');
     await client.query(`
