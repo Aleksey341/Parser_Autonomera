@@ -801,21 +801,21 @@ function displayData(data) {
     }
 
     let tableHtml = `
-        <table style="width: 100%; border-collapse: collapse;">
+        <table style="width: 100%; border-collapse: collapse;" class="sortable-table">
             <thead>
                 <tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Номер</th>
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Регион</th>
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Цена</th>
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Статус</th>
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Дата размещения</th>
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Дата поднятия</th>
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Изменение цены</th>
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Дата изм. цены</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(0, 'data-table')">Номер <span class="sort-indicator">⇅</span></th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(1, 'data-table')">Регион <span class="sort-indicator">⇅</span></th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(2, 'data-table')">Цена <span class="sort-indicator">⇅</span></th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(3, 'data-table')">Статус <span class="sort-indicator">⇅</span></th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(4, 'data-table')">Дата размещения <span class="sort-indicator">⇅</span></th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(5, 'data-table')">Дата поднятия <span class="sort-indicator">⇅</span></th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(6, 'data-table')">Изменение цены <span class="sort-indicator">⇅</span></th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(7, 'data-table')">Дата изм. цены <span class="sort-indicator">⇅</span></th>
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Ссылка</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="data-table">
     `;
 
     // Показываем все данные (но таблица может быть большой, браузер справится)
@@ -875,6 +875,54 @@ function displayRegions(regions) {
 
     document.getElementById('regionsBody').innerHTML = html;
     console.log(`🗺️ Регионы обновлены: ${regions.length} регионов`);
+}
+
+// Функция сортировки таблицы
+function sortTable(columnIndex, tableBodyId) {
+    const tbody = document.getElementById(tableBodyId);
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    // Определяем текущее направление сортировки
+    const headerCell = event.target.closest('th');
+    const indicator = headerCell.querySelector('.sort-indicator');
+    const table = tbody.closest('table');
+    const headers = table.querySelectorAll('th');
+
+    // Сбрасываем индикаторы всех колонок
+    headers.forEach(h => {
+        const ind = h.querySelector('.sort-indicator');
+        if (ind) ind.textContent = '⇅';
+    });
+
+    // Определяем направление сортировки
+    let ascending = indicator.textContent === '⇅' || indicator.textContent === '↓';
+
+    // Сортируем строки
+    rows.sort((a, b) => {
+        let aValue = a.cells[columnIndex].textContent.trim();
+        let bValue = b.cells[columnIndex].textContent.trim();
+
+        // Пробуем преобразовать в числа
+        const aNum = parseFloat(aValue.replace(/\s/g, '').replace(/₽/g, ''));
+        const bNum = parseFloat(bValue.replace(/\s/g, '').replace(/₽/g, ''));
+
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+            return ascending ? aNum - bNum : bNum - aNum;
+        }
+
+        // Если не числа, сортируем как строки
+        const comparison = aValue.localeCompare(bValue, 'ru');
+        return ascending ? comparison : -comparison;
+    });
+
+    // Обновляем индикатор
+    indicator.textContent = ascending ? '↑' : '↓';
+
+    // Перерисовываем таблицу
+    tbody.innerHTML = '';
+    rows.forEach(row => {
+        tbody.appendChild(row);
+    });
 }
 
 window.addEventListener('load', async () => {
