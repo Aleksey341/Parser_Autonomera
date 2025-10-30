@@ -132,21 +132,21 @@ async function getListingsStats() {
   try {
     const result = await client.query(`
       SELECT
-        COUNT(*) as total,
-        COUNT(DISTINCT region) as regions_count,
-        COUNT(DISTINCT seller) as sellers_count,
-        ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER))::numeric) as avg_price,
-        MIN(CAST(NULLIF(price, '') AS INTEGER)) as min_price,
-        MAX(CAST(NULLIF(price, '') AS INTEGER)) as max_price,
+        COALESCE(COUNT(*), 0)::integer as total,
+        COALESCE(COUNT(DISTINCT region), 0)::integer as regions_count,
+        COALESCE(COUNT(DISTINCT seller), 0)::integer as sellers_count,
+        COALESCE(ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER))::numeric), 0)::integer as avg_price,
+        COALESCE(MIN(CAST(NULLIF(price, '') AS INTEGER)), 0)::integer as min_price,
+        COALESCE(MAX(CAST(NULLIF(price, '') AS INTEGER)), 0)::integer as max_price,
         DATE(MAX(updated_at)) as last_update
       FROM listings
     `);
 
     const stats = result.rows[0];
     return {
-      total: parseInt(stats.total),
-      regionsCount: parseInt(stats.regions_count),
-      sellersCount: parseInt(stats.sellers_count),
+      total: parseInt(stats.total) || 0,
+      regionsCount: parseInt(stats.regions_count) || 0,
+      sellersCount: parseInt(stats.sellers_count) || 0,
       avgPrice: parseInt(stats.avg_price) || 0,
       minPrice: parseInt(stats.min_price) || 0,
       maxPrice: parseInt(stats.max_price) || 0,
