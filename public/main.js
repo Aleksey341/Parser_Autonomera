@@ -820,11 +820,12 @@ function displayData(data) {
 
     // Показываем все данные (но таблица может быть большой, браузер справится)
     data.forEach(item => {
-        const price = (item.price || 0).toLocaleString('ru-RU');
+        const priceNum = parseInt(item.price) || 0;
+        const price = priceNum.toLocaleString('ru-RU');
         const datePosted = item.date_posted ? new Date(item.date_posted).toLocaleDateString('ru-RU') : '-';
         const dateUpdated = item.date_updated ? new Date(item.date_updated).toLocaleDateString('ru-RU') : '-';
-        const priceChange = item.last_change && item.last_change.price_delta ? item.last_change.price_delta : null;
-        const priceChangeStr = priceChange ? (priceChange > 0 ? `↑+${priceChange.toLocaleString('ru-RU')}` : `↓${priceChange.toLocaleString('ru-RU')}`) : '-';
+        const priceChangeNum = item.last_change && item.last_change.price_delta ? parseInt(item.last_change.price_delta) : null;
+        const priceChangeStr = priceChangeNum ? (priceChangeNum > 0 ? `↑+${priceChangeNum.toLocaleString('ru-RU')}` : `↓${priceChangeNum.toLocaleString('ru-RU')}`) : '-';
         const dateUpdatedSite = item.last_change && item.last_change.date_updated_site ? new Date(item.last_change.date_updated_site).toLocaleDateString('ru-RU') : '-';
 
         tableHtml += `
