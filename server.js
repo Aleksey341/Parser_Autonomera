@@ -1107,12 +1107,16 @@ app.get('/api/db/regions', async (req, res) => {
       const result = await client.query(`
         SELECT
           region,
-          COUNT(*)::bigint as count,
-          COALESCE(ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER))::numeric), 0)::integer as avg_price,
-          COALESCE(MIN(CAST(NULLIF(price, '') AS INTEGER)), 0)::integer as min_price,
-          COALESCE(MAX(CAST(NULLIF(price, '') AS INTEGER)), 0)::integer as max_price
+          COUNT(*) as count,
+          ROUND(AVG(price::integer)) as avg_price,
+          MIN(price::integer) as min_price,
+          MAX(price::integer) as max_price
         FROM listings
-        WHERE region IS NOT NULL AND region != ''
+        WHERE region IS NOT NULL
+          AND region != ''
+          AND price IS NOT NULL
+          AND price != ''
+          AND price ~ '^[0-9]+$'
         GROUP BY region
         ORDER BY COUNT(*) DESC
         LIMIT 100
@@ -1136,12 +1140,16 @@ app.get('/api/db/sellers', async (req, res) => {
       const result = await client.query(`
         SELECT
           seller,
-          COUNT(*)::bigint as count,
-          COALESCE(ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER))::numeric), 0)::integer as avg_price,
-          COALESCE(MIN(CAST(NULLIF(price, '') AS INTEGER)), 0)::integer as min_price,
-          COALESCE(MAX(CAST(NULLIF(price, '') AS INTEGER)), 0)::integer as max_price
+          COUNT(*) as count,
+          ROUND(AVG(price::integer)) as avg_price,
+          MIN(price::integer) as min_price,
+          MAX(price::integer) as max_price
         FROM listings
-        WHERE seller IS NOT NULL AND seller != ''
+        WHERE seller IS NOT NULL
+          AND seller != ''
+          AND price IS NOT NULL
+          AND price != ''
+          AND price ~ '^[0-9]+$'
         GROUP BY seller
         ORDER BY COUNT(*) DESC
         LIMIT 100
