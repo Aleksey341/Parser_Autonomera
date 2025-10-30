@@ -1128,6 +1128,36 @@ app.get('/api/db/regions', async (req, res) => {
   }
 });
 
+// GET /api/db/load-stats - статистика загрузок по датам
+app.get('/api/db/load-stats', async (req, res) => {
+  try {
+    const pool = db.pool();
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        SELECT
+          DATE(updated_at) as load_date,
+          COUNT(*) as count,
+          COUNT(DISTINCT nomer) as unique_listings,
+          MIN(price) as min_price,
+          MAX(price) as max_price,
+          ROUND(AVG(price))::bigint as avg_price
+        FROM listings
+        WHERE updated_at IS NOT NULL
+        GROUP BY DATE(updated_at)
+        ORDER BY load_date DESC
+        LIMIT 10
+      `);
+      res.json({ rows: result.rows });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('❌ Ошибка в /api/db/load-stats:', error);
+    res.json({ rows: [] });
+  }
+});
+
 // GET /api/db/sellers - группировка по продавцам (DISABLED - seller column not in CSV)
 // app.get('/api/db/sellers', async (req, res) => {
 //   try {
