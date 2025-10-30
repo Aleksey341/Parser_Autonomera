@@ -43,8 +43,9 @@ async function initializeDatabase() {
     console.log(`✓ Время сервера БД: ${result.rows[0].now}`);
     client.release();
 
-    // Создание таблиц если их нет
-    await createTables();
+    // Выполняем миграцию БД (безопасное обновление существующей структуры)
+    const { migrateDatabase } = require('./db-migration');
+    await migrateDatabase();
 
     return pool;
   } catch (error) {
@@ -53,115 +54,7 @@ async function initializeDatabase() {
   }
 }
 
-async function createTables() {
-  const client = await pool.connect();
-  try {
-    // Таблица объявлений
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS listings (
-        id SERIAL PRIMARY KEY,
-        number VARCHAR(15) UNIQUE NOT NULL,
-        price INTEGER,
-        region VARCHAR(100),
-        status VARCHAR(50) DEFAULT 'active',
-        date_posted TIMESTAMP,
-        date_updated TIMESTAMP,
-        seller VARCHAR(255),
-        url VARCHAR(500) UNIQUE,
-        parsed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_listings_region ON listings(region);
-      CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(status);
-      CREATE INDEX IF NOT EXISTS idx_listings_price ON listings(price);
-      CREATE INDEX IF NOT EXISTS idx_listings_updated_at ON listings(updated_at);
-      CREATE INDEX IF NOT EXISTS idx_listings_parsed_at ON listings(parsed_at);
-    `);
-
-    // Таблица для отслеживания сессий парсинга
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS parse_sessions (
-        id VARCHAR(36) PRIMARY KEY,
-        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP NULL,
-        status VARCHAR(50) DEFAULT 'running',
-        total_items INTEGER DEFAULT 0,
-        new_items INTEGER DEFAULT 0,
-        updated_items INTEGER DEFAULT 0,
-        params JSONB,
-        error TEXT
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_sessions_status ON parse_sessions(status);
-      CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON parse_sessions(started_at);
-    `);
-
-    // Таблица для логирования регулярных обновлений
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS cron_logs (
-        id SERIAL PRIMARY KEY,
-        scheduled_time TIMESTAMP,
-        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        completed_at TIMESTAMP NULL,
-        status VARCHAR(50) DEFAULT 'running',
-        items_processed INTEGER DEFAULT 0,
-        error TEXT
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_cron_started_at ON cron_logs(started_at);
-      CREATE INDEX IF NOT EXISTS idx_cron_status ON cron_logs(status);
-    `);
-
-    // Таблица для отслеживания изменений цен и обновлений дат
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS listing_history (
-        id SERIAL PRIMARY KEY,
-        number VARCHAR(15) NOT NULL REFERENCES listings(number) ON DELETE CASCADE,
-        old_price INTEGER,
-        new_price INTEGER,
-        price_delta INTEGER,
-        change_direction VARCHAR(20),
-        date_updated_site TIMESTAMP,
-        is_price_changed BOOLEAN DEFAULT FALSE,
-        recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        session_id VARCHAR(36),
-        FOREIGN KEY (session_id) REFERENCES parse_sessions(id) ON DELETE CASCADE
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_listing_history_number ON listing_history(number);
-      CREATE INDEX IF NOT EXISTS idx_listing_history_recorded_at ON listing_history(recorded_at);
-      CREATE INDEX IF NOT EXISTS idx_listing_history_session ON listing_history(session_id);
-      CREATE INDEX IF NOT EXISTS idx_listing_history_date_updated ON listing_history(date_updated_site);
-    `);
-
-    // Таблица для отслеживания изменений цен (оставляем для совместимости)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS price_history (
-        id SERIAL PRIMARY KEY,
-        number VARCHAR(15) NOT NULL,
-        old_price INTEGER,
-        new_price INTEGER,
-        price_delta INTEGER,
-        change_direction VARCHAR(20),
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        session_id VARCHAR(36),
-        FOREIGN KEY (session_id) REFERENCES parse_sessions(id) ON DELETE CASCADE
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_price_history_number ON price_history(number);
-      CREATE INDEX IF NOT EXISTS idx_price_history_updated_at ON price_history(updated_at);
-      CREATE INDEX IF NOT EXISTS idx_price_history_session ON price_history(session_id);
-    `);
-
-    console.log('✓ Таблицы созданы/проверены');
-  } catch (error) {
-    console.error('✗ Ошибка при создании таблиц:', error.message);
-    throw error;
-  } finally {
-    client.release();
-  }
-}
+// Функция createTables перемещена в db-migration.js для безопасных миграций
 
 // Функции для работы с БД
 
