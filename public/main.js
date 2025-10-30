@@ -775,10 +775,9 @@ function displayData(data) {
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Номер</th>
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Регион</th>
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Цена</th>
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Продавец</th>
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Статус</th>
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Дата обновления</th>
-                    <th style="padding: 12px; text-align: left; font-weight: bold;">Изменения</th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Изменение цены</th>
                     <th style="padding: 12px; text-align: left; font-weight: bold;">Ссылка</th>
                 </tr>
             </thead>
@@ -788,14 +787,14 @@ function displayData(data) {
     data.slice(0, 100).forEach(item => {
         const price = (item.price || 0).toLocaleString('ru-RU');
         const dateUpdated = item.date_updated ? new Date(item.date_updated).toLocaleDateString('ru-RU') : (item.updated_at ? new Date(item.updated_at).toLocaleDateString('ru-RU') : '-');
-        const priceChangeStr = item.last_change ? `↑+${Math.abs(item.last_change.price_delta).toLocaleString('ru-RU')}` : '-';
+        const priceChange = item.last_change && item.last_change.price_delta ? item.last_change.price_delta : null;
+        const priceChangeStr = priceChange ? (priceChange > 0 ? `↑+${priceChange.toLocaleString('ru-RU')}` : `↓${priceChange.toLocaleString('ru-RU')}`) : '-';
 
         tableHtml += `
             <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 10px;">${item.number || '-'}</td>
+                <td style="padding: 10px;">${item.nomer || '-'}</td>
                 <td style="padding: 10px;">${item.region || '-'}</td>
-                <td style="padding: 10px;">${price}</td>
-                <td style="padding: 10px;">${item.seller || '-'}</td>
+                <td style="padding: 10px;">₽${price}</td>
                 <td style="padding: 10px;">${item.status || '-'}</td>
                 <td style="padding: 10px;">${dateUpdated}</td>
                 <td style="padding: 10px;">${priceChangeStr}</td>
