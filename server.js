@@ -437,7 +437,7 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
         // Excel XLSX формат с красивым форматированием и добавленным URL
         const headers = ['Номер', 'Цена', 'Дата размещения', 'Дата обновления', 'Статус', 'Регион', 'URL'];
         const rows = session.listings.map(item => [
-            item.number || '',
+            item.nomer || item.number || '',
             item.price || '',
             item.datePosted || '',
             item.dateUpdated || '',
@@ -452,10 +452,10 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Объявления');
 
-        // Форматирование шапки (серый фон)
+        // Форматирование шапки (серый фон с белым текстом)
         const headerStyle = {
-            fill: { fgColor: { rgb: 'FFD3D3D3' } }, // Серый цвет
-            font: { bold: true, color: { rgb: 'FF000000' } }, // Черный текст
+            fill: { fgColor: { rgb: 'FF808080' } }, // Темный серый цвет
+            font: { bold: true, color: { rgb: 'FFFFFFFF' } }, // Белый текст
             alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
         };
 
@@ -475,7 +475,7 @@ app.get('/api/sessions/:sessionId/export', (req, res) => {
                 const cellValue = row[i] ? String(row[i]).length : 0;
                 if (cellValue > maxWidth) maxWidth = cellValue;
             });
-            colWidths.push({ wch: Math.min(maxWidth + 2, 60) }); // +2 для паддинга, макс 60
+            colWidths.push({ wch: Math.min(maxWidth + 2, 50) }); // +2 для паддинга, макс 50
         }
         ws['!cols'] = colWidths;
 
@@ -1176,6 +1176,39 @@ app.get('/api/db/export', async (req, res) => {
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Стиль серой шапки
+    const headerFill = { patternType: 'solid', fgColor: { rgb: 'FF808080' } };
+    const headerFont = { bold: true, color: { rgb: 'FFFFFFFF' } };
+    const headerAlignment = { horizontal: 'center', vertical: 'center' };
+
+    // Применяем стиль к заголовкам
+    const headers = Object.keys(rows[0] || {});
+    headers.forEach((header, colIndex) => {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: colIndex });
+      if (!ws[cellAddress]) {
+        ws[cellAddress] = { t: 's', v: header };
+      }
+      ws[cellAddress].s = {
+        fill: headerFill,
+        font: headerFont,
+        alignment: headerAlignment
+      };
+    });
+
+    // Автоподстройка столбцов
+    const columnWidths = headers.map((header, index) => {
+      let maxLength = header.length;
+      rows.forEach(row => {
+        const cellValue = String(row[header] || '');
+        if (cellValue.length > maxLength) {
+          maxLength = cellValue.length;
+        }
+      });
+      return { wch: Math.min(maxLength + 2, 50) }; // максимум 50 символов
+    });
+    ws['!cols'] = columnWidths;
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Listings');
 
