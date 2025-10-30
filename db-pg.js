@@ -583,12 +583,12 @@ async function getListingsWithHistory(filters = {}) {
         (
           SELECT json_build_object(
             'price_delta', ph.price_delta,
-            'date_updated_site', ph.date_updated_site,
-            'recorded_at', ph.recorded_at
+            'date_updated_site', ph.updated_at,
+            'recorded_at', ph.updated_at
           )
           FROM price_history ph
-          WHERE ph.nomer = l.nomer
-          ORDER BY ph.recorded_at DESC
+          WHERE ph.number = l.nomer
+          ORDER BY ph.updated_at DESC
           LIMIT 1
         ) as last_change
       FROM listings l
