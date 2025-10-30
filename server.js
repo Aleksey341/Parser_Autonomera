@@ -1101,20 +1101,26 @@ app.get('/api/db/data', async (req, res) => {
 // GET /api/db/regions - группировка по регионам
 app.get('/api/db/regions', async (req, res) => {
   try {
-    const client = db.pool();
-    const result = await client.query(`
-      SELECT
-        region,
-        COUNT(*) as total,
-        ROUND(AVG(price)::numeric) as avg_price,
-        MIN(price) as min_price,
-        MAX(price) as max_price
-      FROM listings
-      GROUP BY region
-      ORDER BY total DESC
-      LIMIT 100
-    `);
-    res.json({ rows: result.rows });
+    const pool = db.pool();
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        SELECT
+          region,
+          COUNT(*) as count,
+          ROUND(AVG(price)::numeric) as avg_price,
+          MIN(price) as min_price,
+          MAX(price) as max_price
+        FROM listings
+        WHERE region IS NOT NULL AND region != ''
+        GROUP BY region
+        ORDER BY count DESC
+        LIMIT 100
+      `);
+      res.json({ rows: result.rows });
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('❌ Ошибка в /api/db/regions:', error);
     res.status(500).json({ error: error.message });
@@ -1124,21 +1130,26 @@ app.get('/api/db/regions', async (req, res) => {
 // GET /api/db/sellers - группировка по продавцам
 app.get('/api/db/sellers', async (req, res) => {
   try {
-    const client = db.pool();
-    const result = await client.query(`
-      SELECT
-        seller,
-        COUNT(*) as total,
-        ROUND(AVG(price)::numeric) as avg_price,
-        MIN(price) as min_price,
-        MAX(price) as max_price
-      FROM listings
-      WHERE seller IS NOT NULL
-      GROUP BY seller
-      ORDER BY total DESC
-      LIMIT 100
-    `);
-    res.json({ rows: result.rows });
+    const pool = db.pool();
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        SELECT
+          seller,
+          COUNT(*) as count,
+          ROUND(AVG(price)::numeric) as avg_price,
+          MIN(price) as min_price,
+          MAX(price) as max_price
+        FROM listings
+        WHERE seller IS NOT NULL AND seller != ''
+        GROUP BY seller
+        ORDER BY count DESC
+        LIMIT 100
+      `);
+      res.json({ rows: result.rows });
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('❌ Ошибка в /api/db/sellers:', error);
     res.status(500).json({ error: error.message });

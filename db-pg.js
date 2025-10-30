@@ -140,7 +140,7 @@ async function getListingsStats() {
         MAX(price) as max_price,
         DATE(MAX(updated_at)) as last_update
       FROM listings
-      WHERE status = 'active'
+      WHERE price > 0 OR price IS NULL
     `);
 
     const stats = result.rows[0];
