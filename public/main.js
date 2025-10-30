@@ -804,7 +804,7 @@ function displayData(data) {
         <table style="width: 100%; border-collapse: collapse;" class="sortable-table">
             <thead>
                 <tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">
-                    <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(0, 'data-table')">Номер <span class="sort-indicator">⇅</span></th>
+                    <th style="padding: 12px; text-align: left; font-weight: bold;">Номер</th>
                     <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(1, 'data-table')">Регион <span class="sort-indicator">⇅</span></th>
                     <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(2, 'data-table')">Цена <span class="sort-indicator">⇅</span></th>
                     <th style="padding: 12px; text-align: left; font-weight: bold; cursor: pointer; user-select: none;" onclick="sortTable(3, 'data-table')">Статус <span class="sort-indicator">⇅</span></th>
