@@ -1108,11 +1108,11 @@ app.get('/api/db/regions', async (req, res) => {
         SELECT
           COALESCE(NULLIF(TRIM(CAST(region AS TEXT)), ''), 'Unknown') as region,
           COUNT(*) as count,
-          ROUND(AVG(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER)))::integer as avg_price,
-          MIN(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as min_price,
-          MAX(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as max_price
+          ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER)))::integer as avg_price,
+          MIN(CAST(NULLIF(price, '') AS INTEGER))::integer as min_price,
+          MAX(CAST(NULLIF(price, '') AS INTEGER))::integer as max_price
         FROM listings
-        WHERE TRIM(CAST(COALESCE(price, '') AS TEXT)) ~ '^[0-9]+$'
+        WHERE price IS NOT NULL AND price != ''
         GROUP BY TRIM(CAST(region AS TEXT))
         HAVING COUNT(*) > 0
         ORDER BY COUNT(*) DESC
@@ -1138,11 +1138,11 @@ app.get('/api/db/sellers', async (req, res) => {
         SELECT
           COALESCE(NULLIF(TRIM(CAST(seller AS TEXT)), ''), 'Unknown') as seller,
           COUNT(*) as count,
-          ROUND(AVG(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER)))::integer as avg_price,
-          MIN(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as min_price,
-          MAX(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as max_price
+          ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER)))::integer as avg_price,
+          MIN(CAST(NULLIF(price, '') AS INTEGER))::integer as min_price,
+          MAX(CAST(NULLIF(price, '') AS INTEGER))::integer as max_price
         FROM listings
-        WHERE TRIM(CAST(COALESCE(price, '') AS TEXT)) ~ '^[0-9]+$'
+        WHERE price IS NOT NULL AND price != ''
         GROUP BY TRIM(CAST(seller AS TEXT))
         HAVING COUNT(*) > 0
         ORDER BY COUNT(*) DESC

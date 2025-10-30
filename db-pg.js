@@ -135,12 +135,12 @@ async function getListingsStats() {
         COUNT(*) as total,
         COUNT(DISTINCT TRIM(CAST(region AS TEXT))) as regions_count,
         COUNT(DISTINCT TRIM(CAST(seller AS TEXT))) as sellers_count,
-        ROUND(AVG(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER)))::integer as avg_price,
-        MIN(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as min_price,
-        MAX(CAST(TRIM(CAST(price AS TEXT)) AS INTEGER))::integer as max_price,
+        ROUND(AVG(CAST(NULLIF(price, '') AS INTEGER)))::integer as avg_price,
+        MIN(CAST(NULLIF(price, '') AS INTEGER))::integer as min_price,
+        MAX(CAST(NULLIF(price, '') AS INTEGER))::integer as max_price,
         DATE(MAX(updated_at)) as last_update
       FROM listings
-      WHERE TRIM(CAST(COALESCE(price, '') AS TEXT)) ~ '^[0-9]+$'
+      WHERE price IS NOT NULL AND price != ''
     `);
 
     const stats = result.rows[0] || {};
