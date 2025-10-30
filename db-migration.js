@@ -35,6 +35,42 @@ async function migrateDatabase() {
     console.log('  ├─ Проверяем таблицу listings...');
     await client.query(`
       ALTER TABLE listings
+      ADD COLUMN IF NOT EXISTS number VARCHAR(15);
+    `);
+    console.log('  ├─ ✓ Колонка number добавлена (если не было)');
+
+    await client.query(`
+      ALTER TABLE listings
+      ADD COLUMN IF NOT EXISTS seller VARCHAR(255);
+    `);
+    console.log('  ├─ ✓ Колонка seller добавлена (если не было)');
+
+    await client.query(`
+      ALTER TABLE listings
+      ADD COLUMN IF NOT EXISTS url TEXT;
+    `);
+    console.log('  ├─ ✓ Колонка url добавлена (если не было)');
+
+    await client.query(`
+      ALTER TABLE listings
+      ADD COLUMN IF NOT EXISTS status VARCHAR(50);
+    `);
+    console.log('  ├─ ✓ Колонка status добавлена (если не было)');
+
+    await client.query(`
+      ALTER TABLE listings
+      ADD COLUMN IF NOT EXISTS region VARCHAR(255);
+    `);
+    console.log('  ├─ ✓ Колонка region добавлена (если не было)');
+
+    await client.query(`
+      ALTER TABLE listings
+      ADD COLUMN IF NOT EXISTS price INTEGER;
+    `);
+    console.log('  ├─ ✓ Колонка price добавлена (если не было)');
+
+    await client.query(`
+      ALTER TABLE listings
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
     `);
     console.log('  ├─ ✓ Колонка updated_at добавлена (если не было)');
