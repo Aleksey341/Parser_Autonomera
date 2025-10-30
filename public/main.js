@@ -660,7 +660,7 @@ async function exportData() {
     showMessage('success', `✅ Excel файл с ${allData.length} объявлениями загружен`);
 }
 
-function switchTab(tabName) {
+function switchTab(tabName, eventTarget) {
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
     });
@@ -669,7 +669,19 @@ function switchTab(tabName) {
     });
 
     document.getElementById(tabName).classList.add('active');
-    event.target.classList.add('active');
+
+    // Если передан eventTarget, используем его, иначе ищем соответствующую кнопку
+    if (eventTarget) {
+        eventTarget.classList.add('active');
+    } else {
+        // Находим кнопку по содержимому и активируем её
+        const buttons = document.querySelectorAll('.tab-btn');
+        buttons.forEach(btn => {
+            if (btn.textContent.toLowerCase().includes(tabName.toLowerCase())) {
+                btn.classList.add('active');
+            }
+        });
+    }
 }
 
 function updateLastUpdate() {
