@@ -86,7 +86,7 @@ app.post('/api/parse', async (req, res) => {
         region = null,
         maxPages = 200,
         delayMs = 100,
-        concurrentRequests = 500,
+        concurrentRequests = 20,  // Снижено с 500 для совместимости с сайтом
         requestDelayMs = 50,
         mode = 'live' // 'live' - реальный парсинг, 'demo' - загрузка из JSON
     } = req.body;
@@ -233,7 +233,7 @@ app.post('/api/parse-differential', async (req, res) => {
         region = null,
         maxPages = 200,
         delayMs = 100,
-        concurrentRequests = 500,
+        concurrentRequests = 20,  // Снижено с 500 для совместимости с сайтом
         requestDelayMs = 50
     } = req.body;
 
@@ -986,7 +986,7 @@ async function runCronParsing() {
       region,
       maxPages,
       delayMs,
-      concurrentRequests: Number(process.env.CONCURRENT_REQUESTS || 500),
+      concurrentRequests: Number(process.env.CONCURRENT_REQUESTS || 20),  // Снижено для совместимости
       requestDelayMs: Number(process.env.REQUEST_DELAY_MS || 50)
     });
 

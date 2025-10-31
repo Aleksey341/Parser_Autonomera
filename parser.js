@@ -14,8 +14,8 @@ class AutonomeraParser {
         this.minPrice = options.minPrice || 0;
         this.maxPrice = options.maxPrice || Infinity;
         this.region = options.region || null;
-        this.concurrentRequests = options.concurrentRequests || 500; // Параллельные запросы (500 оптимально для Puppeteer)
-        this.requestDelayMs = options.requestDelayMs || 50; // Задержка между параллельными запросами (50ms)
+        this.concurrentRequests = options.concurrentRequests || 20; // Параллельные запросы (снижено с 500 для совместимости)
+        this.requestDelayMs = options.requestDelayMs || 100; // Задержка между параллельными запросами (увеличено с 50 для надежности)
         this.listings = [];
         this.errors = [];
         this.browser = null;
