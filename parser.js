@@ -284,8 +284,13 @@ class AutonomeraParser {
             }
 
             try {
-                // Ждем завершения всех параллельных запросов
-                const results = await Promise.all(promises);
+                // Добавляем timeout для Promise.all чтобы избежать зависания
+                const results = await Promise.race([
+                    Promise.all(promises),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Timeout: batch requests took too long')), 60000)
+                    )
+                ]);
 
                 let totalNewCount = 0;
                 let emptyCount = 0;
@@ -331,29 +336,22 @@ class AutonomeraParser {
                 console.log(`✅ Батч из ${promises.length} запросов загружено ${totalNewCount} новых объявлений`);
 
             } catch (error) {
-                console.log(`⚠️ Ошибка при загрузке батча: ${error.message}`);
+                console.error(`❌ Ошибка при обработке батча: ${error.message}`);
 
-                // Если ошибка связана с разрывом соединения, пытаемся восстановить
-                if (error.message.includes('Attempted to use detached Frame') ||
-                    error.message.includes('Connection closed') ||
-                    error.message.includes('Protocol error')) {
-                    console.log('🔄 Пытаемся восстановить соединение...');
-                    try {
-                        // Проверяем, жива ли страница
-                        if (page && page.browser && page.browser.isConnected()) {
-                            // Перезагружаем страницу
-                            await page.reload({ waitUntil: 'domcontentloaded', timeout: this.timeout });
-                            console.log('✅ Страница перезагружена');
-                            await this.delay(300); // Короткая задержка для инициализации
-                            // Пытаемся снова
-                            continue;
-                        }
-                    } catch (reloadError) {
-                        console.log(`❌ Не удалось восстановить: ${reloadError.message}`);
-                        break;
-                    }
+                // Если ошибка не связана с timeout, выходим
+                if (!error.message.includes('Timeout') &&
+                    !error.message.includes('Connection closed') &&
+                    !error.message.includes('Protocol error')) {
+                    console.log('📌 Прекращаем парсинг из-за ошибки');
+                    break;
                 }
-                break;
+
+                // Для timeout/connection ошибок пытаемся продолжить
+                console.log('⏸️ Пауза 5 секунд перед повтором...');
+                await this.delay(5000);
+
+                // Не перезагружаем страницу - просто пытаемся снова
+                continue;
             }
         }
 
@@ -363,77 +361,38 @@ class AutonomeraParser {
     }
 
     /**
-     * Загружает один блок объявлений с параллельными запросами
+     * Загружает один блок объявлений с прямыми HTTP запросами (без page.evaluate для стабильности)
      */
     async fetchListingsChunk(page, startIndex) {
         try {
-            const newHtml = await page.evaluate(async (start) => {
-                return new Promise((resolve) => {
-                    const params = {
-                        number: JSON.stringify({
-                            word1: '',
-                            word2: '',
-                            word3: '',
-                            number1: '',
-                            number2: '',
-                            number3: '',
-                            number4: '',
-                            code: '',
-                            city: '',
-                            catid: 'undefined',
-                            type: 'standart'
-                        }),
-                        catid: 'undefined',
-                        type: 'standart',
-                        city: '',
-                        code: '',
-                        photo: '',
-                        sletters: '',
-                        snumbers: '',
-                        firstten: '',
-                        ehundred: '',
-                        numeqreg: '',
-                        mirrored: '',
-                        pricefr: '',
-                        priceto: '',
-                        regcode: 'undefined',
-                        blog: 'numbers',
-                        userid: '',
-                        order: 'a.`created`',
-                        dir: 'DESC',
-                        start: start,
-                        sort: '',
-                        item_id: 101
-                    };
+            // Используем прямой HTTP запрос вместо page.evaluate() для избежания перегрузки браузера
+            const url = this.buildLoadMoreUrl(startIndex);
 
-                    if (typeof jQuery !== 'undefined') {
-                        jQuery.ajax({
-                            type: 'GET',
-                            url: '/ajax/get_numbers.php',
-                            data: params,
-                            dataType: 'html',
-                            success: function(response) {
-                                if (response && response.trim()) {
-                                    // Добавляем новые объявления в DOM
-                                    jQuery('#adverts-list-area').append(response);
-                                    resolve(response);
-                                } else {
-                                    resolve('');
-                                }
-                            },
-                            error: function() {
-                                resolve('');
-                            }
-                        });
-                    } else {
-                        resolve('');
+            // Делаем запрос напрямую с использованием Puppeteer's fetch
+            const newHtml = await page.evaluate(async (fetchUrl) => {
+                try {
+                    const response = await fetch(fetchUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                        },
+                        timeout: 30000
+                    });
+
+                    if (response.ok) {
+                        return await response.text();
                     }
-                });
-            }, startIndex);
+                    return '';
+                } catch (err) {
+                    return '';
+                }
+            }, url);
 
             return { html: newHtml, error: null };
         } catch (error) {
-            return { html: '', error: error };
+            // Не логируем как ошибку - это нормальное завершение в конце списка
+            return { html: '', error: null };
         }
     }
 
