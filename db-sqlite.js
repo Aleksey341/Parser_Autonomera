@@ -353,6 +353,33 @@ async function closeDatabase() {
   });
 }
 
+/**
+ * Совместимость с PostgreSQL API
+ * Возвращает объект с методом connect для совместимости
+ */
+function pool() {
+  return {
+    connect: async () => ({
+      query: async (sql, params) => {
+        const result = await all(sql, params);
+        return { rows: result };
+      },
+      execute: async (sql, params) => {
+        const result = await all(sql, params);
+        return [result];
+      },
+      release: () => {}
+    }),
+    getConnection: async () => ({
+      execute: async (sql, params) => {
+        const result = await all(sql, params);
+        return [result];
+      },
+      release: () => {}
+    })
+  };
+}
+
 module.exports = {
   initializeDatabase,
   insertOrUpdateListing,
@@ -362,5 +389,6 @@ module.exports = {
   createParseSession,
   completeParseSession,
   getDifferentialListings,
-  closeDatabase
+  closeDatabase,
+  pool
 };
