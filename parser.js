@@ -344,6 +344,19 @@ class AutonomeraParser {
                 if (emptyCount === promises.length) {
                     consecutiveEmptyResponses++;
                     console.log(`⚠️ Пустые ответы: ${consecutiveEmptyResponses}/3`);
+
+                    // Если это первые пустые батчи и у нас 0 объявлений - перезагружаем страницу
+                    if (consecutiveEmptyResponses === 1 && this.listings.length === 0) {
+                        console.log('⚠️  Не удалось загрузить объявления. Перезагружаем страницу...');
+                        try {
+                            await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+                            console.log('✅ Страница перезагружена');
+                            consecutiveEmptyResponses = 0; // Сбрасываем счетчик
+                        } catch (reloadError) {
+                            console.log(`⚠️  Ошибка при перезагрузке: ${reloadError.message}`);
+                        }
+                    }
+
                     if (consecutiveEmptyResponses >= 3) {
                         console.log('✅ 3 серии пустых ответов - все загружены');
                         break;
