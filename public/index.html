@@ -29,6 +29,14 @@
 
 
             <div class="button-group">
+                <button class="btn-primary" id="parseBtn" onclick="startRealParsing()">
+                    <span class="spinner" id="spinnerParse" style="display: none; margin-right: 8px;"></span>
+                    🚀 Начать парсинг
+                </button>
+                <button class="btn-primary" id="continueParseBtn" onclick="continueRealParsing()" disabled style="display: none;">
+                    <span class="spinner" id="spinnerContinueParse" style="display: none; margin-right: 8px;"></span>
+                    ▶️ Продолжить парсинг
+                </button>
                 <button class="btn-primary" id="startBtn" onclick="startParsing()">
                     <span class="spinner" id="spinner" style="display: none; margin-right: 8px;"></span>
                     📥 Загрузить из БД
@@ -37,12 +45,8 @@
                     <span class="spinner" id="spinnerContinue" style="display: none; margin-right: 8px;"></span>
                     ▶️ Продолжить (батч +2000)
                 </button>
-                <button class="btn-primary" id="resumeBtn" onclick="resumeParsing()" disabled style="display: none;">
-                    <span class="spinner" id="spinnerResume" style="display: none; margin-right: 8px;"></span>
-                    ▶️ Продолжить парсинг
-                </button>
                 <button class="btn-secondary" id="stopBtn" onclick="stopParsing()" disabled>
-                    Остановить
+                    ⏹️ Остановить
                 </button>
                 <button class="btn-export" id="exportBtn" onclick="exportData()" disabled>
                     📥 Экспортировать

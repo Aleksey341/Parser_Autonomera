@@ -954,3 +954,246 @@ window.addEventListener('load', async () => {
         }
     }
 });
+
+/**
+ * Запускает реальный парсинг сайта
+ */
+async function startRealParsing() {
+    const minPrice = parseInt(document.getElementById('minPrice').value) || 0;
+    const maxPrice = parseInt(document.getElementById('maxPrice').value) || 10000000;
+
+    // Проверяем доступность сервера
+    try {
+        const healthCheck = await fetch(`${serverUrl}/api/health`);
+        if (!healthCheck.ok) {
+            showMessage('error', '❌ Сервер недоступен. Убедитесь, что Node.js сервер запущен на ' + serverUrl);
+            return;
+        }
+    } catch (error) {
+        showMessage('error', '❌ Не удалось подключиться к серверу. Запустите: node server.js');
+        return;
+    }
+
+    // Отключаем кнопки и показываем спиннер
+    document.getElementById('parseBtn').disabled = true;
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    document.getElementById('exportBtn').disabled = true;
+    document.getElementById('spinnerParse').style.display = 'inline-block';
+    document.getElementById('progressSection').classList.add('active');
+
+    showMessage('info', '🚀 Запускаю парсинг сайта...');
+    document.getElementById('statusText').textContent = '🚀 Запуск парсинга...';
+    document.getElementById('sessionStatus').textContent = 'Инициализация...';
+    document.getElementById('loadedCount').textContent = '0';
+    foundCount = 0;
+    document.getElementById('foundCount').textContent = '0';
+    isStopped = false;
+
+    // Сбрасываем и запускаем таймер
+    parsingStartTime = null;
+    startParsingTimer();
+
+    try {
+        // Отправляем запрос на запуск парсинга
+        const response = await fetch(`${serverUrl}/api/parse`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                minPrice: minPrice,
+                maxPrice: maxPrice,
+                mode: 'live'
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Ошибка ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('✅ Парсинг запущен:', result);
+
+        currentSessionId = result.sessionId;
+        localStorage.setItem('activeParsingSession', currentSessionId);
+
+        showMessage('success', `✅ Парсинг запущен! Session ID: ${currentSessionId}`);
+        document.getElementById('statusText').textContent = '⏳ Парсинг выполняется...';
+
+        // Запускаем мониторинг статуса
+        monitorRealParsing();
+
+    } catch (error) {
+        showMessage('error', `❌ Ошибка запуска парсинга: ${error.message}`);
+        console.error('Детали ошибки:', error);
+        document.getElementById('parseBtn').disabled = false;
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        document.getElementById('spinnerParse').style.display = 'none';
+        stopParsingTimer();
+    }
+}
+
+/**
+ * Продолжает парсинг после достижения батча
+ */
+async function continueRealParsing() {
+    if (!currentSessionId) {
+        showMessage('error', '❌ Сессия не найдена');
+        return;
+    }
+
+    document.getElementById('continueParseBtn').disabled = true;
+    document.getElementById('spinnerContinueParse').style.display = 'inline-block';
+    document.getElementById('parseBtn').style.display = 'none';
+    document.getElementById('stopBtn').disabled = false;
+
+    showMessage('info', '▶️ Продолжаю парсинг...');
+
+    // Сбрасываем и запускаем таймер заново
+    parsingStartTime = null;
+    startParsingTimer();
+
+    try {
+        const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/continue`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Ошибка ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('✅ Парсинг продолжен:', result);
+
+        showMessage('success', '✅ Парсинг продолжен!');
+        document.getElementById('continueParseBtn').style.display = 'none';
+        document.getElementById('statusText').textContent = '⏳ Парсинг выполняется...';
+
+        // Продолжаем мониторинг
+        monitorRealParsing();
+
+    } catch (error) {
+        showMessage('error', `❌ Ошибка продолжения парсинга: ${error.message}`);
+        console.error('Детали ошибки:', error);
+        document.getElementById('continueParseBtn').disabled = false;
+        document.getElementById('spinnerContinueParse').style.display = 'none';
+        document.getElementById('stopBtn').disabled = true;
+        stopParsingTimer();
+    }
+}
+
+/**
+ * Мониторинг реального парсинга с переключением кнопок
+ */
+async function monitorRealParsing() {
+    if (!currentSessionId) return;
+
+    // Очищаем старый интервал если он существует
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        console.log('🔄 Старый интервал мониторинга очищен');
+    }
+
+    // Создаём новый интервал для мониторинга статуса
+    statusCheckInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`${serverUrl}/api/sessions/${currentSessionId}/status`);
+            const status = await response.json();
+
+            // Обновляем UI
+            document.getElementById('sessionStatus').textContent = translateStatus(status.status);
+            document.getElementById('loadedCount').textContent = status.listingsCount;
+            foundCount = status.listingsCount;
+            document.getElementById('foundCount').textContent = foundCount;
+
+            console.log(`📊 Статус: ${status.status}, найдено: ${foundCount}`);
+
+            if (status.status === 'completed') {
+                // Парсинг завершен
+                clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
+                stopParsingTimer();
+                await loadResults(false);
+                showMessage('success', `✅ Парсинг завершен! Всего загружено ${status.listingsCount} объявлений`);
+
+                // Возвращаем кнопки в исходное состояние
+                document.getElementById('parseBtn').disabled = false;
+                document.getElementById('parseBtn').style.display = 'inline-block';
+                document.getElementById('continueParseBtn').disabled = true;
+                document.getElementById('continueParseBtn').style.display = 'none';
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('exportBtn').disabled = false;
+                document.getElementById('spinnerParse').style.display = 'none';
+                document.getElementById('spinnerContinueParse').style.display = 'none';
+
+                localStorage.removeItem('activeParsingSession');
+
+            } else if (status.status === 'paused') {
+                // Достигнут батч - переключаем на кнопку "Продолжить"
+                clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
+                stopParsingTimer();
+                await loadResults(true);
+                showMessage('success', `✅ Батч завершен! Загружено ${status.listingsCount} объявлений\n👉 Нажмите "Продолжить парсинг" для следующего батча`);
+
+                // Прячем кнопку "Начать парсинг", показываем "Продолжить"
+                document.getElementById('parseBtn').disabled = true;
+                document.getElementById('parseBtn').style.display = 'none';
+                document.getElementById('continueParseBtn').disabled = false;
+                document.getElementById('continueParseBtn').style.display = 'inline-block';
+                document.getElementById('stopBtn').disabled = false;
+                document.getElementById('exportBtn').disabled = false;
+                document.getElementById('spinnerParse').style.display = 'none';
+
+            } else if (status.status === 'stopped') {
+                // Парсинг остановлен
+                clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
+                stopParsingTimer();
+                await loadResults(true);
+                showMessage('info', `⏹️ Парсинг остановлен! Собрано ${status.listingsCount} объявлений`);
+
+                document.getElementById('parseBtn').disabled = false;
+                document.getElementById('parseBtn').style.display = 'inline-block';
+                document.getElementById('continueParseBtn').disabled = true;
+                document.getElementById('continueParseBtn').style.display = 'none';
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('exportBtn').disabled = false;
+                document.getElementById('spinnerParse').style.display = 'none';
+
+                localStorage.removeItem('activeParsingSession');
+
+            } else if (status.status === 'error') {
+                // Ошибка парсинга
+                clearInterval(statusCheckInterval);
+                statusCheckInterval = null;
+                stopParsingTimer();
+                showMessage('error', `❌ Ошибка парсинга: ${status.error}`);
+
+                document.getElementById('parseBtn').disabled = false;
+                document.getElementById('parseBtn').style.display = 'inline-block';
+                document.getElementById('continueParseBtn').disabled = true;
+                document.getElementById('continueParseBtn').style.display = 'none';
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('spinnerParse').style.display = 'none';
+
+                localStorage.removeItem('activeParsingSession');
+            }
+
+            updateLastUpdate();
+
+        } catch (error) {
+            console.error('Ошибка при проверке статуса:', error);
+        }
+    }, 500);
+
+    console.log('✅ Мониторинг реального парсинга запущен (интервал 500ms)');
+}
