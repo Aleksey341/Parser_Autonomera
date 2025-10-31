@@ -176,7 +176,7 @@ class AutonomeraParser {
                 } catch (navError) {
                     console.log('⚠️  Timeout при загрузке страницы, ждем загрузки контента...');
                     // Если timeout, ждем пока хотя бы базовый контент загрузится
-                    await this.page.waitForTimeout(3000);
+                    await this.delay(3000);
                 }
 
                 // Ждём загрузки объявлений через jQuery
