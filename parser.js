@@ -8,7 +8,7 @@ const { stringify } = require('csv-stringify/sync');
 class AutonomeraParser {
     constructor(options = {}) {
         this.baseUrl = 'https://autonomera777.net';
-        this.timeout = options.timeout || 40000; // 40 секунд для загрузки страницы
+        this.timeout = options.timeout || 60000; // 60 секунд для загрузки страницы (увеличено для надежности)
         this.delayMs = options.delayMs || 100; // 100ms задержка между запросами (оптимизировано для скорости)
         this.maxPages = options.maxPages || 200; // 200 страниц = ~10,000 объявлений
         this.minPrice = options.minPrice || 0;
