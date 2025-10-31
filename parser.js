@@ -4,7 +4,6 @@ const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
 const { stringify } = require('csv-stringify/sync');
-const axios = require('axios');
 
 class AutonomeraParser {
     constructor(options = {}) {
@@ -196,7 +195,11 @@ class AutonomeraParser {
         // Закрываем страницу только при полном завершении (не при паузе)
         if (!result || !result.paused) {
             if (this.page) {
-                await this.page.close();
+                try {
+                    await this.page.close();
+                } catch (e) {
+                    console.log(`⚠️  Ошибка при закрытии страницы: ${e.message}`);
+                }
                 this.page = null;
             }
             // Сохраняем результаты в файл перед закрытием браузера
@@ -362,33 +365,27 @@ class AutonomeraParser {
     }
 
     /**
-     * Загружает один блок объявлений прямым HTTP запросом (без браузера)
-     * Это наиболее стабильный способ
+     * Загружает один блок объявлений через браузер с минимальными операциями
      */
     async fetchListingsChunk(page, startIndex) {
         try {
-            // Делаем прямой HTTP запрос БЕЗ браузера (вне page.evaluate)
-            // Это избегает перегрузки браузера и более надежно
             const url = this.buildLoadMoreUrl(startIndex);
 
-            const response = await axios.get(url, {
-                timeout: 30000,
-                headers: {
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                    'Referer': this.baseUrl
-                },
-                validateStatus: () => true // Принимаем любой статус
-            });
+            // Используем setTimeout для простого AJAX запроса БЕЗ DOM операций
+            // Это минимизирует нагрузку на браузер
+            const newHtml = await page.evaluate((fetchUrl) => {
+                return new Promise((resolve) => {
+                    // Простой fetch без DOM операций
+                    fetch(fetchUrl)
+                        .then(res => res.text())
+                        .then(html => resolve(html))
+                        .catch(() => resolve(''));
+                });
+            }, url);
 
-            // Если статус не 200, возвращаем пустой результат
-            if (response.status !== 200 || !response.data) {
-                return { html: '', error: null };
-            }
-
-            return { html: response.data, error: null };
+            return { html: newHtml || '', error: null };
         } catch (error) {
-            // Временная ошибка - возвращаем пустой результат без логирования
+            // Не логируем ошибки - это нормальное завершение
             return { html: '', error: null };
         }
     }
