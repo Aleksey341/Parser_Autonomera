@@ -58,29 +58,66 @@ async function initializeDatabase() {
 
 // Функции для работы с БД
 
-async function insertOrUpdateListing(listingData) {
+async function insertOrUpdateListing(listingData, sessionId = null) {
   const client = await pool.connect();
   try {
     const {
       number, price, region, status, datePosted, dateUpdated, seller, url
     } = listingData;
 
-    // PostgreSQL не имеет ON DUPLICATE KEY UPDATE,
-    // используем ON CONFLICT ... DO UPDATE вместо этого
-    await client.query(`
-      INSERT INTO listings (number, price, region, status, date_posted, date_updated, seller, url, parsed_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    // 1. Получаем старые данные если запись существует
+    const existingResult = await client.query(
+      'SELECT id, price as old_price, number FROM listings WHERE number = $1',
+      [number]
+    );
+    const existingRecord = existingResult.rows[0];
+    const oldPrice = existingRecord ? existingRecord.old_price : null;
+    const isNew = !existingRecord;
+
+    // 2. Вставляем или обновляем основную таблицу
+    const upsertResult = await client.query(`
+      INSERT INTO listings (number, price, region, status, date_posted, date_updated, seller, url, parsed_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
       ON CONFLICT (number) DO UPDATE SET
         price = EXCLUDED.price,
+        region = EXCLUDED.region,
         status = EXCLUDED.status,
         date_updated = EXCLUDED.date_updated,
-        parsed_at = NOW()
+        seller = EXCLUDED.seller,
+        url = EXCLUDED.url,
+        parsed_at = NOW(),
+        updated_at = NOW()
+      RETURNING id
     `, [number, price, region, status, datePosted, dateUpdated, seller, url]);
 
-    return true;
+    const listingId = upsertResult.rows[0].id;
+
+    // 3. Если это была существующая запись и цена изменилась, записываем в историю
+    if (!isNew && oldPrice !== null && Number(price) !== Number(oldPrice) && sessionId) {
+      const priceDelta = Number(price) - Number(oldPrice);
+      const changeDirection = priceDelta > 0 ? 'increased' : 'decreased';
+
+      try {
+        await client.query(`
+          INSERT INTO price_history (number, old_price, new_price, price_delta, change_direction, session_id)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [number, oldPrice, price, priceDelta, changeDirection, sessionId]);
+
+        console.log(`📊 Зафиксировано изменение цены: ${number} ${oldPrice}→${price} (${priceDelta > 0 ? '+' : ''}${priceDelta})`);
+      } catch (historyError) {
+        console.warn(`⚠️  Не удалось записать историю цены для ${number}: ${historyError.message}`);
+      }
+    }
+
+    return {
+      success: true,
+      listingId,
+      action: isNew ? 'inserted' : 'updated',
+      priceChanged: !isNew && oldPrice !== null && Number(price) !== Number(oldPrice)
+    };
   } catch (error) {
     console.error('Ошибка при вставке/обновлении:', error.message);
-    return false;
+    return { success: false, error: error.message };
   } finally {
     client.release();
   }

@@ -179,15 +179,19 @@ class ParserDBAdapter {
               dateUpdated: listing.dateUpdated ? this.normalizeDate(listing.dateUpdated) : null,
               seller: listing.seller || 'unknown',
               url: listing.url || ''
-            }),
+            }, this.sessionId),  // Передаем sessionId для отслеживания цены
             `insertOrUpdateListing ${listing.number}`
           );
 
           if (result && result.success) {
             if (result.action === 'inserted') {
               this.newItemsCount++;
-            } else {
+            } else if (result.action === 'updated') {
               this.updatedItemsCount++;
+              // Логируем если произошло изменение цены
+              if (result.priceChanged) {
+                console.log(`💰 Изменена цена для ${listing.number}`);
+              }
             }
           }
         } catch (error) {
@@ -266,7 +270,7 @@ class ParserDBAdapter {
     // Сохраняем новые объявления
     console.log(`💾 Сохраняю ${diffResult.newListings.length} новых объявлений...`);
     for (const listing of diffResult.newListings) {
-      await db.insertOrUpdateListing(listing);
+      await db.insertOrUpdateListing(listing, this.sessionId);
       this.newItemsCount++;
     }
 

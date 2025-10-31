@@ -423,4 +423,125 @@ router.get('/all-numbers', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/db/overview - получить обзор БД (для кнопки Загрузить из БД)
+ */
+router.get('/db/overview', async (req, res) => {
+  try {
+    const stats = await db.getListingsStats();
+
+    res.json({
+      total: stats?.total || 0,
+      regionsCount: stats?.regionsCount || 0,
+      avgPrice: stats?.avgPrice || 0,
+      minPrice: stats?.minPrice || 0,
+      maxPrice: stats?.maxPrice || 0,
+      lastUpdate: stats?.lastUpdate
+    });
+  } catch (error) {
+    console.error('Ошибка при получении обзора БД:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/db/data - получить данные из БД (для кнопки Загрузить из БД)
+ */
+router.get('/db/data', async (req, res) => {
+  try {
+    const {
+      minPrice = 0,
+      maxPrice = 999999999,
+      region = null,
+      limit = 10000,
+      offset = 0
+    } = req.query;
+
+    const filters = {
+      minPrice: parseInt(minPrice),
+      maxPrice: parseInt(maxPrice),
+      limit: Math.min(parseInt(limit), 50000)
+    };
+
+    if (region && region !== 'null' && region !== '') {
+      filters.region = region;
+    }
+
+    const listings = await db.getListings(filters);
+
+    res.json({
+      success: true,
+      rows: listings || []
+    });
+  } catch (error) {
+    console.error('Ошибка при получении данных БД:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/db/regions - получить статистику по регионам (для кнопки Загрузить из БД)
+ */
+router.get('/db/regions', async (req, res) => {
+  try {
+    const client = db.pool().connect ? await db.pool().connect() : null;
+
+    if (!client) {
+      // Для SQLite и MySQL, получаем регионы из БД через отдельный запрос
+      const listings = await db.getListings({ limit: 999999 });
+      const regionsMap = {};
+
+      listings.forEach(listing => {
+        const region = listing.region || 'Unknown';
+        if (!regionsMap[region]) {
+          regionsMap[region] = { region, count: 0, avgPrice: 0, totalPrice: 0 };
+        }
+        regionsMap[region].count++;
+        regionsMap[region].totalPrice += listing.price || 0;
+      });
+
+      const rows = Object.values(regionsMap).map(r => ({
+        region: r.region,
+        count: r.count,
+        avgPrice: r.totalPrice ? Math.round(r.totalPrice / r.count) : 0
+      }));
+
+      return res.json({
+        success: true,
+        rows: rows
+      });
+    }
+
+    const result = await client.query(`
+      SELECT
+        region,
+        COUNT(*) as count,
+        ROUND(AVG(price))::integer as avg_price
+      FROM listings
+      WHERE region IS NOT NULL
+      GROUP BY region
+      ORDER BY count DESC
+    `);
+
+    client.release();
+
+    res.json({
+      success: true,
+      rows: result.rows || []
+    });
+  } catch (error) {
+    console.error('Ошибка при получении регионов:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
