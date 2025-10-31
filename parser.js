@@ -4,6 +4,7 @@ const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
 const { stringify } = require('csv-stringify/sync');
+const axios = require('axios');
 
 class AutonomeraParser {
     constructor(options = {}) {
@@ -361,37 +362,33 @@ class AutonomeraParser {
     }
 
     /**
-     * Загружает один блок объявлений с прямыми HTTP запросами (без page.evaluate для стабильности)
+     * Загружает один блок объявлений прямым HTTP запросом (без браузера)
+     * Это наиболее стабильный способ
      */
     async fetchListingsChunk(page, startIndex) {
         try {
-            // Используем прямой HTTP запрос вместо page.evaluate() для избежания перегрузки браузера
+            // Делаем прямой HTTP запрос БЕЗ браузера (вне page.evaluate)
+            // Это избегает перегрузки браузера и более надежно
             const url = this.buildLoadMoreUrl(startIndex);
 
-            // Делаем запрос напрямую с использованием Puppeteer's fetch
-            const newHtml = await page.evaluate(async (fetchUrl) => {
-                try {
-                    const response = await fetch(fetchUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        },
-                        timeout: 30000
-                    });
+            const response = await axios.get(url, {
+                timeout: 30000,
+                headers: {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Referer': this.baseUrl
+                },
+                validateStatus: () => true // Принимаем любой статус
+            });
 
-                    if (response.ok) {
-                        return await response.text();
-                    }
-                    return '';
-                } catch (err) {
-                    return '';
-                }
-            }, url);
+            // Если статус не 200, возвращаем пустой результат
+            if (response.status !== 200 || !response.data) {
+                return { html: '', error: null };
+            }
 
-            return { html: newHtml, error: null };
+            return { html: response.data, error: null };
         } catch (error) {
-            // Не логируем как ошибку - это нормальное завершение в конце списка
+            // Временная ошибка - возвращаем пустой результат без логирования
             return { html: '', error: null };
         }
     }
