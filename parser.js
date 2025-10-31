@@ -170,12 +170,27 @@ class AutonomeraParser {
                 });
 
                 // Загружаем страницу (используем domcontentloaded вместо networkidle2 для более быстрой загрузки)
-                await this.page.goto(this.baseUrl, { waitUntil: 'domcontentloaded', timeout: this.timeout });
+                try {
+                    await this.page.goto(this.baseUrl, { waitUntil: 'domcontentloaded', timeout: this.timeout });
+                    console.log('✅ Страница загружена');
+                } catch (navError) {
+                    console.log('⚠️  Timeout при загрузке страницы, ждем загрузки контента...');
+                    // Если timeout, ждем пока хотя бы базовый контент загрузится
+                    await this.page.waitForTimeout(3000);
+                }
 
-                console.log('✅ Страница загружена');
+                // Ждём загрузки объявлений через jQuery
+                try {
+                    await this.page.waitForFunction(() => {
+                        return typeof jQuery !== 'undefined' && jQuery('#adverts-list-area').length > 0;
+                    }, { timeout: 10000 });
+                    console.log('✅ Контент страницы готов к парсингу');
+                } catch (e) {
+                    console.log('⚠️  jQuery или контейнер объявлений не найдены, продолжаем парсинг...');
+                }
 
-                // Минимальная задержка для загрузки jQuery и объявлений
-                await this.delay(300);
+                // Задержка для загрузки JavaScript и объявлений
+                await this.delay(500);
             } catch (error) {
                 const msg = `Ошибка при загрузке главной страницы: ${error.message}`;
                 console.error('❌', msg);
