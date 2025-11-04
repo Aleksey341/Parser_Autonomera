@@ -1,51 +1,55 @@
 {
-  "name": "autonomera777-parser",
-  "version": "2.0.1",
-  "description": "Parser for autonomera777.net - Russian license plate marketplace. Collect vehicle registration numbers, prices, and seller information.",
+  "name": "mvp-analitika",
+  "version": "1.0.0",
+  "description": "Интерактивный дашборд оценки эффективности глав муниципальных образований Липецкой области с картой-хлороплетой, аналитикой и рейтингами.",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "server": "node server.js",
-    "parse": "node parser.js",
-    "dev": "node server.js",
-    "parse:dev": "node parser.js --dev"
+    "dev": "nodemon server.js",
+    "db:init": "psql $DATABASE_URL -f sql/01_schema_municipalities.sql && psql $DATABASE_URL -f sql/02_schema_facts.sql && psql $DATABASE_URL -f sql/03_seed_indicators_and_scales.sql",
+    "db:seed": "psql $DATABASE_URL -f sql/04_seed_test_data.sql",
+    "db:reset": "npm run db:init && npm run db:seed",
+    "test": "jest --coverage"
   },
   "keywords": [
-    "parser",
-    "scraper",
-    "license-plates",
-    "autonomera777",
-    "russian"
+    "analytics",
+    "dashboard",
+    "municipalities",
+    "lipetsk",
+    "rating",
+    "effectiveness",
+    "choropleth"
   ],
-  "author": "Your Name",
+  "author": "Липецкая область",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/autonomera777-parser.git"
+    "url": "https://github.com/Aleksey341/MVP-analitika.git"
   },
   "engines": {
-    "node": ">=14.0.0",
-    "npm": ">=6.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "dependencies": {
-    "@sparticuz/chromium": "^119.0.0",
-    "axios": "^1.6.0",
-    "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
-    "csv-stringify": "^6.4.0",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "iconv-lite": "^0.7.0",
-    "mysql2": "^3.6.5",
-    "node-cron": "^3.0.3",
     "pg": "^8.16.3",
-    "puppeteer-core": "^22.0.0",
-    "sqlite3": "^5.1.7",
-    "undici": "^6.0.0",
-    "xlsx": "^0.18.5"
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.1.2",
+    "bcrypt": "^5.1.1",
+    "pdfkit": "^0.13.0",
+    "exceljs": "^4.3.0",
+    "xlsx": "^0.18.5",
+    "helmet": "^7.1.0",
+    "express-session": "^1.17.3",
+    "express-rate-limit": "^7.1.5",
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.1",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
   }
 }
