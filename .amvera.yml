@@ -3,11 +3,11 @@ meta:
   version: 20
 
 build:
-  installCmd: npm install --omit=dev
+  installCmd: npm install --omit=dev --legacy-peer-deps
   skip: false
 
 run:
-  CMD: npm run start
+  CMD: npm start
   scriptName: server.js
   containerPort: 3000
   nodeArguments: --experimental-global-webcrypto
@@ -15,3 +15,4 @@ run:
 env:
   - NODE_ENV=production
   - NODE_OPTIONS=--experimental-global-webcrypto
+  - NPM_CONFIG_LEGACY_PEER_DEPS=true
